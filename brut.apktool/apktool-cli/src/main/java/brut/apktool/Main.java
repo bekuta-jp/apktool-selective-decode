@@ -146,6 +146,30 @@ public class Main {
         .desc("Do not decode assets.")
         .get();
 
+    private static final Option decodeDexModeOption = Option.builder()
+        .longOpt("dex-mode")
+        .desc("Set dex handling mode to <mode>.\n"
+            + "Possible values: 'decode', 'raw' or 'skip'.")
+        .hasArg()
+        .argName("mode")
+        .get();
+
+    private static final Option decodeManifestModeOption = Option.builder()
+        .longOpt("manifest-mode")
+        .desc("Set AndroidManifest.xml handling mode to <mode>.\n"
+            + "Possible values: 'decode', 'raw' or 'skip'.")
+        .hasArg()
+        .argName("mode")
+        .get();
+
+    private static final Option decodeResModeOption = Option.builder()
+        .longOpt("res-mode")
+        .desc("Set resources handling mode to <mode>.\n"
+            + "Possible values: 'decode', 'raw' or 'skip'.")
+        .hasArg()
+        .argName("mode")
+        .get();
+
     private static final Option decodeOutputOption = Option.builder("o")
         .longOpt("output")
         .desc("Output decoded files to <dir>. (default: apk.out)")
@@ -254,6 +278,9 @@ public class Main {
                 decodeOptions.addOption(decodeNoDebugInfoOption);
                 decodeOptions.addOption(decodeOnlyManifestOption);
                 decodeOptions.addOption(decodeResResolveModeOption);
+                decodeOptions.addOption(decodeDexModeOption);
+                decodeOptions.addOption(decodeManifestModeOption);
+                decodeOptions.addOption(decodeResModeOption);
             }
         }
 
@@ -509,6 +536,16 @@ public class Main {
         if (cli.hasOption(decodeNoAssetsOption)) {
             config.setDecodeAssets(Config.DecodeAssets.NONE);
         }
+        if (cli.hasOption(decodeDexModeOption)) {
+            config.setDecodeDexMode(parseDecodeMode(cli.getOptionValue(decodeDexModeOption), decodeDexModeOption));
+        }
+        if (cli.hasOption(decodeManifestModeOption)) {
+            config.setDecodeManifestMode(parseDecodeMode(
+                cli.getOptionValue(decodeManifestModeOption), decodeManifestModeOption));
+        }
+        if (cli.hasOption(decodeResModeOption)) {
+            config.setDecodeResMode(parseDecodeMode(cli.getOptionValue(decodeResModeOption), decodeResModeOption));
+        }
 
         File outDir;
         if (cli.hasOption(decodeOutputOption)) {
@@ -714,6 +751,28 @@ public class Main {
 
     private static void printOptionConflict(Option option, Option conflict) {
         System.err.println("Ignoring " + formatOption(option) + " (cannot be used with " + formatOption(conflict) + ")");
+    }
+
+    private static Config.DecodeMode parseDecodeMode(String mode, Option option) {
+        if (mode == null) {
+            System.err.println("Mode was not specified for " + formatOption(option) + ".");
+            System.exit(1);
+            return Config.DecodeMode.AUTO;
+        }
+
+        switch (mode) {
+            case "decode":
+                return Config.DecodeMode.DECODE;
+            case "raw":
+                return Config.DecodeMode.RAW;
+            case "skip":
+                return Config.DecodeMode.SKIP;
+            default:
+                System.err.println("Unknown mode for " + formatOption(option) + ": " + mode);
+                System.err.println("Expect: 'decode', 'raw' or 'skip'.");
+                System.exit(1);
+                return Config.DecodeMode.AUTO;
+        }
     }
 
     private static String formatOption(Option option) {

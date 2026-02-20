@@ -1,58 +1,67 @@
-### Apktool
-_This is the repository for Apktool. The website is at the [apktool.org](https://github.com/iBotPeaches/apktool.org) repository._
+# Apktool Selective Decode (Unofficial Fork)
 
-[![CI](https://github.com/iBotPeaches/Apktool/actions/workflows/build.yml/badge.svg)](https://github.com/iBotPeaches/Apktool/actions/workflows/test.yml)
-[![Software License](https://img.shields.io/badge/license-Apache%202.0-brightgreen.svg)](https://github.com/iBotPeaches/Apktool/blob/master/LICENSE.md)
+## 日本語
+このリポジトリは [iBotPeaches/Apktool](https://github.com/iBotPeaches/Apktool) をベースに、大規模 APK の実験時に不要ファイル出力を減らすための選択的デコード機能を追加した非公式フォークです。
 
-Apktool is a tool for reverse engineering third-party, closed, binary, Android apps. It can decode resources to nearly original form and rebuild them after making some modifications; it makes it possible to debug smali code step-by-step. It also makes working with apps easier thanks to project-like file structure and automation of some repetitive tasks such as building apk, etc.
+- 上流互換の基本ワークフロー（`decode` / `build`）は維持
+- `dex` / `AndroidManifest.xml` / `resources` ごとに処理方式を選択可能
+- 実行終了時に処理サマリをログ出力
 
-Apktool is **NOT** intended for piracy and other non-legal uses. It could be used for localizing and adding features, adding support for custom platforms, and other GOOD purposes. Just try to be fair with the authors of an app, that you use and probably like.
+### 追加オプション（decode）
+- `--dex-mode <decode|raw|skip>`
+- `--manifest-mode <decode|raw|skip>`
+- `--res-mode <decode|raw|skip>`
 
-### Branches
-- `main` - Apktool 3.x branch
-- `2.x` - Maintenance branch for Apktool 2.x releases
+意味:
+- `decode`: 従来どおりデコードして保存
+- `raw`: 生ファイルとして保存
+- `skip`: 対象を出力しない
 
-#### Support
-- [Project Page](https://apktool.org)
-- [#apktool on libera.chat](https://web.libera.chat)
+### 使用例
+```bash
+apktool d app.apk --dex-mode skip --manifest-mode decode --res-mode decode
+apktool d app.apk --dex-mode raw --manifest-mode raw --res-mode skip
+```
 
-#### Security Vulnerabilities
+### 注意
+- このフォークは公式 Apktool ではありません。
+- Apktool は違法行為を目的としたツールではありません。利用する国・地域の法令に従ってください。
+- ライセンスは Apache 2.0 です。再配布時は `LICENSE.md` を必ず同梱してください。
 
-If you discover a security vulnerability within Apktool, please send an e-mail to Connor Tumbleson at connor.tumbleson(at)gmail.com. All security vulnerabilities will be promptly addressed.
+公開手順（新規リポジトリ作成、remote 設定、初回 push）は `PUBLISHING.md` を参照してください。
 
-#### Links
-- [Downloads](https://bitbucket.org/iBotPeaches/apktool/downloads)
-- [Downloads Mirror](https://connortumbleson.com/apktool)
-- [How to Build](https://apktool.org/docs/build)
-- [Documentation](https://apktool.org/wiki/the-basics/intro)
-- [Bug Reports](https://github.com/iBotPeaches/Apktool/issues)
-- [Changelog/Information](https://apktool.org/blog)
-- [XDA Post](https://forum.xda-developers.com/t/util-dec-2-2020-apktool-tool-for-reverse-engineering-apk-files.1755243/)
-- [Source (GitHub)](https://github.com/iBotPeaches/Apktool)
-- [Source (Bitbucket)](https://bitbucket.org/iBotPeaches/apktool/)
+## English
+This repository is an unofficial fork of [iBotPeaches/Apktool](https://github.com/iBotPeaches/Apktool), focused on reducing unnecessary file output when experimenting with large APKs.
 
+- Keeps the core upstream workflow (`decode` / `build`)
+- Adds per-component handling for `dex`, `AndroidManifest.xml`, and `resources`
+- Emits a decode summary log after each run
 
-## Sponsors
+### Added decode options
+- `--dex-mode <decode|raw|skip>`
+- `--manifest-mode <decode|raw|skip>`
+- `--res-mode <decode|raw|skip>`
 
-Special thanks goes to the following sponsors:
+Semantics:
+- `decode`: decode and save (default Apktool behavior)
+- `raw`: save as raw/binary
+- `skip`: do not write that component
 
-### Sourcetoad
-[Sourcetoad](https://sourcetoad.com/) is an award-winning software and app development firm committed to the co-creation of technology solutions that solve complex business problems, delight users, and help our clients achieve their goals.
+### Examples
+```bash
+apktool d app.apk --dex-mode skip --manifest-mode decode --res-mode decode
+apktool d app.apk --dex-mode raw --manifest-mode raw --res-mode skip
+```
 
-<a href="https://www.sourcetoad.com" alt="Sourcetoad">
-    <picture>
-        <img src="https://github.com/ibotpeaches/apktool/raw/main/.github/assets/sponsors/sourcetoad-horizontal.svg">
-    </picture>
-</a>
+### Notes
+- This is not an official Apktool distribution.
+- Apktool is not intended for piracy or illegal use. Follow your local laws and policies.
+- License: Apache 2.0. Keep `LICENSE.md` when redistributing.
 
-### Emerge Tools
+For publishing steps (creating a new remote repo, setting remotes, first push), see `PUBLISHING.md`.
 
-[Emerge Tools](https://www.emergetools.com) is a suite of revolutionary products designed to supercharge mobile apps and the teams that build them.
-
-<a href="https://www.emergetools.com" alt="Emerge Tools">
-    <picture>
-        <source media="(prefers-color-scheme: dark)" srcset="https://github.com/ibotpeaches/apktool/raw/main/.github/assets/sponsors/emerge-tools-vertical-white.svg">
-        <source media="(prefers-color-scheme: light)" srcset="https://github.com/ibotpeaches/apktool/raw/main/.github/assets/sponsors/emerge-tools-vertical-black.svg">
-        <img src="https://github.com/ibotpeaches/apktool/raw/main/.github/assets/sponsors/emerge-tools-vertical-black.svg">
-    </picture>
-</a>
+## Upstream Project
+- Source: [iBotPeaches/Apktool](https://github.com/iBotPeaches/Apktool)
+- Project page: [apktool.org](https://apktool.org)
+- Branches: `main` for Apktool 3.x, `2.x` for Apktool 2.x maintenance
+- Original copyright holders are retained in source headers.

@@ -50,11 +50,25 @@ public class ApkDecoder {
     private SmaliDecoder mSmaliDecoder;
     private ResDecoder mResDecoder;
     private BackgroundWorker mWorker;
+    private int mDexHandledCount;
+    private int mRawCopiedCount;
+    private int mOriginalCopiedCount;
+    private int mUnknownCopiedCount;
+    private String mDexAction;
+    private String mManifestAction;
+    private String mResAction;
 
     public ApkDecoder(File apkFile, Config config) {
         mApkFile = new ExtFile(apkFile);
         mConfig = config;
         mFirstError = new AtomicReference<>();
+        mDexHandledCount = 0;
+        mRawCopiedCount = 0;
+        mOriginalCopiedCount = 0;
+        mUnknownCopiedCount = 0;
+        mDexAction = "skip";
+        mManifestAction = "skip";
+        mResAction = "skip";
     }
 
     public void decode(File outDir) throws AndrolibException {
@@ -95,6 +109,7 @@ public class ApkDecoder {
             copyRawFiles(outDir);
             copyUnknownFiles(outDir);
             writeApkInfo(outDir);
+            logDecodeSummary();
         } finally {
             if (mWorker != null) {
                 mWorker.shutdownNow();
@@ -112,24 +127,32 @@ public class ApkDecoder {
 
     private void decodeSources(File outDir) throws AndrolibException {
         if (!mApkInfo.hasSources()) {
+            mDexAction = "skip (not found)";
+            return;
+        }
+
+        Config.DecodeMode mode = getDexMode();
+        mDexAction = formatMode(mode);
+        if (mode == Config.DecodeMode.SKIP) {
+            Log.i(TAG, "Skipping dex files...");
             return;
         }
 
         try {
             Directory in = mApkFile.getDirectory();
             boolean allSrc = mConfig.isDecodeSourcesFull();
-            boolean noSrc = mConfig.isDecodeSourcesNone();
 
             for (String fileName : in.getFiles(allSrc)) {
                 if (allSrc ? !fileName.endsWith(".dex") : !ApkInfo.CLASSES_FILES_PATTERN.matcher(fileName).matches()) {
                     continue;
                 }
 
-                if (noSrc) {
+                if (mode == Config.DecodeMode.RAW) {
                     copySourcesRaw(outDir, fileName);
                 } else {
                     decodeSourcesSmali(outDir, fileName);
                 }
+                mDexHandledCount++;
             }
         } catch (DirectoryException ex) {
             throw new AndrolibException(ex);
@@ -170,13 +193,24 @@ public class ApkDecoder {
 
     private void decodeResources(File outDir) throws AndrolibException {
         if (!mApkInfo.hasResources()) {
+            mResAction = "skip (not found)";
             return;
         }
 
-        if (mConfig.isDecodeResourcesFull()) {
-            mResDecoder.decodeResources(outDir);
-        } else {
-            copyResourcesRaw(outDir);
+        Config.DecodeMode mode = getResMode();
+        mResAction = formatMode(mode);
+        switch (mode) {
+            case DECODE:
+                mResDecoder.decodeResources(outDir);
+                break;
+            case RAW:
+                copyResourcesRaw(outDir);
+                break;
+            case SKIP:
+                Log.i(TAG, "Skipping resources...");
+                break;
+            default:
+                throw new IllegalStateException("Unexpected resources mode: " + mode);
         }
     }
 
@@ -193,13 +227,24 @@ public class ApkDecoder {
 
     private void decodeManifest(File outDir) throws AndrolibException {
         if (!mApkInfo.hasManifest()) {
+            mManifestAction = "skip (not found)";
             return;
         }
 
-        if (!mConfig.isDecodeResourcesNone()) {
-            mResDecoder.decodeManifest(outDir);
-        } else {
-            copyManifestRaw(outDir);
+        Config.DecodeMode mode = getManifestMode();
+        mManifestAction = formatMode(mode);
+        switch (mode) {
+            case DECODE:
+                mResDecoder.decodeManifest(outDir);
+                break;
+            case RAW:
+                copyManifestRaw(outDir);
+                break;
+            case SKIP:
+                Log.i(TAG, "Skipping AndroidManifest.xml...");
+                break;
+            default:
+                throw new IllegalStateException("Unexpected manifest mode: " + mode);
         }
     }
 
@@ -232,6 +277,7 @@ public class ApkDecoder {
                     if (!ApkInfo.ORIGINAL_FILES_PATTERN.matcher(fileName).matches()
                             && !dexFiles.contains(fileName) && !resFileMap.containsKey(fileName)) {
                         in.copyToDir(outDir, fileName);
+                        mRawCopiedCount++;
                     }
                 }
             }
@@ -246,10 +292,15 @@ public class ApkDecoder {
         Log.i(TAG, "Copying original files...");
         try {
             Directory in = mApkFile.getDirectory();
+            boolean skipManifest = getManifestMode() == Config.DecodeMode.SKIP;
 
             for (String fileName : in.getFiles(true)) {
                 if (ApkInfo.ORIGINAL_FILES_PATTERN.matcher(fileName).matches()) {
+                    if (skipManifest && fileName.equals("AndroidManifest.xml")) {
+                        continue;
+                    }
                     in.copyToDir(originalDir, fileName);
+                    mOriginalCopiedCount++;
                 }
             }
         } catch (DirectoryException ex) {
@@ -265,11 +316,16 @@ public class ApkDecoder {
             Directory in = mApkFile.getDirectory();
             Set<String> dexFiles = mSmaliDecoder.getDexFiles();
             Map<String, String> resFileMap = mResDecoder.getResFileMap();
+            boolean skipRes = getResMode() == Config.DecodeMode.SKIP;
 
             for (String fileName : in.getFiles(true)) {
+                if (skipRes && fileName.startsWith("res/")) {
+                    continue;
+                }
                 if (!ApkInfo.STANDARD_FILES_PATTERN.matcher(fileName).matches() && !dexFiles.contains(fileName)
                         && !resFileMap.containsKey(fileName)) {
                     in.copyToDir(unknownDir, fileName);
+                    mUnknownCopiedCount++;
                 }
             }
         } catch (DirectoryException ex) {
@@ -279,7 +335,7 @@ public class ApkDecoder {
 
     private void writeApkInfo(File outDir) throws AndrolibException {
         // If we did not decode the manifest, store the inferred dex opcode API level.
-        if (!mApkInfo.hasManifest() || mConfig.isDecodeResourcesNone()) {
+        if (!mApkInfo.hasManifest() || getManifestMode() != Config.DecodeMode.DECODE) {
             int apiLevel = mSmaliDecoder.getInferredApiLevel();
             if (apiLevel > 0) {
                 mApkInfo.getSdkInfo().setMinSdkVersion(Integer.toString(apiLevel));
@@ -335,5 +391,49 @@ public class ApkDecoder {
 
         // Serialize apk info to file.
         mApkInfo.save(outDir);
+    }
+
+    private Config.DecodeMode getDexMode() {
+        Config.DecodeMode mode = mConfig.getDecodeDexMode();
+        if (mode != Config.DecodeMode.AUTO) {
+            return mode;
+        }
+        return mConfig.isDecodeSourcesNone() ? Config.DecodeMode.RAW : Config.DecodeMode.DECODE;
+    }
+
+    private Config.DecodeMode getManifestMode() {
+        Config.DecodeMode mode = mConfig.getDecodeManifestMode();
+        if (mode != Config.DecodeMode.AUTO) {
+            return mode;
+        }
+        return mConfig.isDecodeResourcesNone() ? Config.DecodeMode.RAW : Config.DecodeMode.DECODE;
+    }
+
+    private Config.DecodeMode getResMode() {
+        Config.DecodeMode mode = mConfig.getDecodeResMode();
+        if (mode != Config.DecodeMode.AUTO) {
+            return mode;
+        }
+        return mConfig.isDecodeResourcesFull() ? Config.DecodeMode.DECODE : Config.DecodeMode.RAW;
+    }
+
+    private String formatMode(Config.DecodeMode mode) {
+        switch (mode) {
+            case DECODE:
+                return "decode";
+            case RAW:
+                return "raw";
+            case SKIP:
+                return "skip";
+            default:
+                return "auto";
+        }
+    }
+
+    private void logDecodeSummary() {
+        Log.i(TAG, String.format(
+            "Decode summary: dex=%s (%d files), manifest=%s, res=%s, copied(original=%d, raw=%d, unknown=%d)",
+            mDexAction, mDexHandledCount, mManifestAction, mResAction,
+            mOriginalCopiedCount, mRawCopiedCount, mUnknownCopiedCount));
     }
 }
