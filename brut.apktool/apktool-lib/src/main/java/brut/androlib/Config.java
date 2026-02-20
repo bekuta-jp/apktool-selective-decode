@@ -21,6 +21,7 @@ public class Config {
     public enum DecodeResources { FULL, ONLY_MANIFEST, NONE }
     public enum DecodeResolve { DEFAULT, GREEDY, LAZY }
     public enum DecodeAssets { FULL, NONE }
+    public enum DecodeMode { AUTO, DECODE, RAW, SKIP }
 
     private final String mVersion;
 
@@ -41,6 +42,9 @@ public class Config {
     private boolean mIgnoreRawValues;
     private boolean mAnalysisMode;
     private DecodeAssets mDecodeAssets;
+    private DecodeMode mDecodeDexMode;
+    private DecodeMode mDecodeManifestMode;
+    private DecodeMode mDecodeResMode;
 
     // Build options
     private boolean mNoApk;
@@ -70,6 +74,9 @@ public class Config {
         mIgnoreRawValues = false;
         mAnalysisMode = false;
         mDecodeAssets = DecodeAssets.FULL;
+        mDecodeDexMode = DecodeMode.AUTO;
+        mDecodeManifestMode = DecodeMode.AUTO;
+        mDecodeResMode = DecodeMode.AUTO;
 
         // Build options
         mNoApk = false;
@@ -218,6 +225,33 @@ public class Config {
     public void setDecodeAssets(DecodeAssets decodeAssets) {
         assert decodeAssets != null;
         mDecodeAssets = decodeAssets;
+    }
+
+    public DecodeMode getDecodeDexMode() {
+        return mDecodeDexMode;
+    }
+
+    public void setDecodeDexMode(DecodeMode decodeDexMode) {
+        assert decodeDexMode != null;
+        mDecodeDexMode = decodeDexMode;
+    }
+
+    public DecodeMode getDecodeManifestMode() {
+        return mDecodeManifestMode;
+    }
+
+    public void setDecodeManifestMode(DecodeMode decodeManifestMode) {
+        assert decodeManifestMode != null;
+        mDecodeManifestMode = decodeManifestMode;
+    }
+
+    public DecodeMode getDecodeResMode() {
+        return mDecodeResMode;
+    }
+
+    public void setDecodeResMode(DecodeMode decodeResMode) {
+        assert decodeResMode != null;
+        mDecodeResMode = decodeResMode;
     }
 
     // Build options
