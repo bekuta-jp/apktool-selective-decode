@@ -63,12 +63,20 @@ public class ResDecoder {
         return mResFileMap;
     }
 
-    public void decodeResources(File apkDir) throws AndrolibException {
+    public void loadResources() throws AndrolibException {
         if (!mApkInfo.hasResources()) {
             return;
         }
 
         mTable.load();
+    }
+
+    public void decodeResources(File apkDir) throws AndrolibException {
+        if (!mApkInfo.hasResources()) {
+            return;
+        }
+
+        loadResources();
 
         Map<ResFileDecoder.Type, ResStreamDecoder> decoders = new HashMap<>();
         decoders.put(ResFileDecoder.Type.UNKNOWN, new ResRawStreamDecoder());

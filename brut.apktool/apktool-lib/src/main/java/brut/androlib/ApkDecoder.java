@@ -207,7 +207,7 @@ public class ApkDecoder {
                 copyResourcesRaw(outDir);
                 break;
             case SKIP:
-                Log.i(TAG, "Skipping resources...");
+                Log.i(TAG, "Skipping resource file output...");
                 break;
             default:
                 throw new IllegalStateException("Unexpected resources mode: " + mode);
@@ -235,6 +235,7 @@ public class ApkDecoder {
         mManifestAction = formatMode(mode);
         switch (mode) {
             case DECODE:
+                loadResourcesForManifest();
                 mResDecoder.decodeManifest(outDir);
                 break;
             case RAW:
@@ -245,6 +246,18 @@ public class ApkDecoder {
                 break;
             default:
                 throw new IllegalStateException("Unexpected manifest mode: " + mode);
+        }
+    }
+
+    private void loadResourcesForManifest() throws AndrolibException {
+        if (!mApkInfo.hasResources() || getResMode() == Config.DecodeMode.DECODE) {
+            return;
+        }
+
+        Log.i(TAG, "Loading resources for AndroidManifest.xml...");
+        mResDecoder.loadResources();
+        if (getResMode() == Config.DecodeMode.SKIP) {
+            mResAction = "skip (loaded for manifest)";
         }
     }
 
