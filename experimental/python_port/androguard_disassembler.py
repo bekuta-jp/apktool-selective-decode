@@ -235,14 +235,20 @@ def _render_annotation_elements(annotation: object, indent: str) -> list[str]:
     return lines
 
 
-def _render_annotation_set(annotation_set: object, indent: str = "") -> list[str]:
+def _render_annotation_set(
+    annotation_set: object,
+    annotation_items: Dict[int, object],
+    indent: str = "",
+) -> list[str]:
     if annotation_set is None:
         return []
 
     visibility_names = {0: "build", 1: "runtime", 2: "system"}
     lines: list[str] = []
     for annotation_off in annotation_set.get_annotation_off_item():
-        item = annotation_off.get_annotation_item()
+        item = annotation_items.get(annotation_off.get_annotation_off())
+        if item is None:
+            continue
         annotation = item.get_annotation()
         visibility = visibility_names.get(item.get_visibility(), "build")
         annotation_type = annotation.CM.get_type(annotation.get_type_idx())
@@ -564,9 +570,19 @@ def disassemble_dex(data: bytes) -> DexDisassembly:
     from loguru import logger
 
     logger.remove()
-    from androguard.core.dex import DEX, Operand
+    from androguard.core.dex import DEX, Operand, TypeMapItem
 
     dex = DEX(data)
+    annotation_sets = {
+        item.get_off(): item
+        for item in (
+            dex.map_list.get_item_type(TypeMapItem.ANNOTATION_SET_ITEM) or []
+        )
+    }
+    annotation_items = {
+        item.get_off(): item
+        for item in (dex.map_list.get_item_type(TypeMapItem.ANNOTATION_ITEM) or [])
+    }
     result: Dict[str, MethodBody] = {}
     field_initializers: Dict[str, str] = {}
     class_annotations: Dict[str, list[str]] = {}
@@ -584,7 +600,10 @@ def disassemble_dex(data: bytes) -> DexDisassembly:
         directory = class_def.annotations_directory_item
         if directory is None:
             continue
-        rendered = _render_annotation_set(directory.get_annotation_set_item())
+        rendered = _render_annotation_set(
+            annotation_sets.get(directory.get_class_annotations_off()),
+            annotation_items,
+        )
         if rendered:
             class_annotations[class_def.get_name()] = rendered
 
@@ -593,9 +612,8 @@ def disassemble_dex(data: bytes) -> DexDisassembly:
                 field_annotation.get_field_idx()
             )
             rendered = _render_annotation_set(
-                dex.CM.get_annotation_set_item(
-                    field_annotation.get_annotations_off()
-                ),
+                annotation_sets.get(field_annotation.get_annotations_off()),
+                annotation_items,
                 indent="    ",
             )
             if rendered:
@@ -608,9 +626,8 @@ def disassemble_dex(data: bytes) -> DexDisassembly:
                 method_annotation.get_method_idx()
             )
             rendered = _render_annotation_set(
-                dex.CM.get_annotation_set_item(
-                    method_annotation.get_annotations_off()
-                ),
+                annotation_sets.get(method_annotation.get_annotations_off()),
+                annotation_items,
                 indent="    ",
             )
             if rendered:
