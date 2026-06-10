@@ -597,6 +597,7 @@ def _smali_for_class(
         lines.append("# annotations")
         lines.extend(annotations)
         lines.append("")
+        lines.append("")
 
     def append_fields(section: str, encoded_fields: List[EncodedField]) -> None:
         if not encoded_fields:

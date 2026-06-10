@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from dex_decoder import _descriptor_to_smali_path, _unique_smali_path
 from androguard_disassembler import (
     _assign_branch_labels,
+    _debug_directives,
     _parameter_descriptors,
     _replace_registers,
 )
@@ -64,6 +65,52 @@ class SmaliPathTest(unittest.TestCase):
         self.assertEqual(":cond_1", labels[("cond", 42)])
         self.assertEqual(":goto_1", labels[("goto", 42)])
         self.assertEqual([":cond_1", ":goto_1"], labels_at[42])
+
+    def test_debug_local_lifecycle_uses_smali_registers(self) -> None:
+        data = bytes(
+            [
+                0xFF,
+                0x01,
+                0x00,
+                0x04,
+                0x00,
+                0x01,
+                0x01,
+                0x02,
+                0x01,
+                0x01,
+                0x05,
+                0x00,
+                0x01,
+                0x01,
+                0x06,
+                0x00,
+                0x00,
+            ]
+        )
+        strings = ["value", "TT;"]
+        directives = _debug_directives(
+            data,
+            1,
+            parameter_start=2,
+            string_resolver=strings.__getitem__,
+            type_resolver=["Ljava/lang/Object;"].__getitem__,
+            initial_locals={},
+        )
+        self.assertEqual(
+            {
+                0: [
+                    '.local v0, "value":Ljava/lang/Object;, "TT;"',
+                ],
+                2: [
+                    '.end local v0    # "value":Ljava/lang/Object;, "TT;"',
+                ],
+                4: [
+                    '.restart local v0    # "value":Ljava/lang/Object;, "TT;"',
+                ],
+            },
+            directives,
+        )
 
 
 if __name__ == "__main__":

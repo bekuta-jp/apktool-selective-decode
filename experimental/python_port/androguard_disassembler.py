@@ -249,6 +249,8 @@ def _render_annotation_set(
         item = annotation_items.get(annotation_off.get_annotation_off())
         if item is None:
             continue
+        if lines:
+            lines.append("")
         annotation = item.get_annotation()
         visibility = visibility_names.get(item.get_visibility(), "build")
         annotation_type = annotation.CM.get_type(annotation.get_type_idx())
@@ -287,7 +289,48 @@ def _read_sleb128(data: bytes, offset: int) -> tuple[int, int]:
     return value, offset
 
 
-def _debug_directives(data: bytes, offset: int) -> Dict[int, list[str]]:
+def _format_local(
+    directive: str,
+    register: str,
+    local: tuple[str, str, Optional[str]],
+) -> str:
+    name, type_name, signature = local
+    value = f"{_quote_string(name)}:{type_name}"
+    if signature is not None:
+        value += f", {_quote_string(signature)}"
+    if directive == ".local":
+        return f"{directive} {register}, {value}"
+    return f"{directive} {register}    # {value}"
+
+
+def _initial_parameter_locals(
+    method: object,
+    code: object,
+    names: list[Optional[str]],
+) -> Dict[int, tuple[str, str, Optional[str]]]:
+    descriptors = _parameter_descriptors(method.get_descriptor())
+    register = code.get_registers_size() - code.get_ins_size()
+    locals_by_register: Dict[int, tuple[str, str, Optional[str]]] = {}
+    if not method.get_access_flags() & 0x0008:
+        locals_by_register[register] = ("this", method.get_class_name(), None)
+        register += 1
+
+    for index, descriptor in enumerate(descriptors):
+        name = names[index] if index < len(names) else None
+        if name is not None:
+            locals_by_register[register] = (name, descriptor, None)
+        register += 2 if descriptor in {"J", "D"} else 1
+    return locals_by_register
+
+
+def _debug_directives(
+    data: bytes,
+    offset: int,
+    parameter_start: int,
+    string_resolver: object,
+    type_resolver: object,
+    initial_locals: Dict[int, tuple[str, str, Optional[str]]],
+) -> Dict[int, list[str]]:
     if offset == 0:
         return {}
 
@@ -299,6 +342,8 @@ def _debug_directives(data: bytes, offset: int) -> Dict[int, list[str]]:
 
         address = 0
         directives: Dict[int, list[str]] = {}
+        active_locals = dict(initial_locals)
+        previous_locals = dict(initial_locals)
         while cursor < len(data):
             opcode = data[cursor]
             cursor += 1
@@ -310,14 +355,57 @@ def _debug_directives(data: bytes, offset: int) -> Dict[int, list[str]]:
             elif opcode == 2:
                 advance, cursor = _read_sleb128(data, cursor)
                 line += advance
-            elif opcode == 3:
-                for _ in range(3):
-                    _, cursor = _read_uleb128(data, cursor)
-            elif opcode == 4:
-                for _ in range(4):
-                    _, cursor = _read_uleb128(data, cursor)
-            elif opcode in {5, 6}:
-                _, cursor = _read_uleb128(data, cursor)
+            elif opcode in {3, 4}:
+                register, cursor = _read_uleb128(data, cursor)
+                name_index, cursor = _read_uleb128(data, cursor)
+                type_index, cursor = _read_uleb128(data, cursor)
+                signature_index = 0
+                if opcode == 4:
+                    signature_index, cursor = _read_uleb128(data, cursor)
+                if name_index == 0 or type_index == 0:
+                    continue
+                local = (
+                    string_resolver(name_index - 1),
+                    type_resolver(type_index - 1),
+                    (
+                        string_resolver(signature_index - 1)
+                        if signature_index > 0
+                        else None
+                    ),
+                )
+                active_locals[register] = local
+                previous_locals[register] = local
+                directives.setdefault(address * 2, []).append(
+                    _format_local(
+                        ".local",
+                        _register_name(register, parameter_start),
+                        local,
+                    )
+                )
+            elif opcode == 5:
+                register, cursor = _read_uleb128(data, cursor)
+                local = active_locals.pop(register, None)
+                if local is not None:
+                    previous_locals[register] = local
+                    directives.setdefault(address * 2, []).append(
+                        _format_local(
+                            ".end local",
+                            _register_name(register, parameter_start),
+                            local,
+                        )
+                    )
+            elif opcode == 6:
+                register, cursor = _read_uleb128(data, cursor)
+                local = previous_locals.get(register)
+                if local is not None:
+                    active_locals[register] = local
+                    directives.setdefault(address * 2, []).append(
+                        _format_local(
+                            ".restart local",
+                            _register_name(register, parameter_start),
+                            local,
+                        )
+                    )
             elif opcode == 7:
                 directives.setdefault(address * 2, []).append(".prologue")
             elif opcode == 8:
@@ -672,9 +760,16 @@ def disassemble_dex(data: bytes) -> DexDisassembly:
         for target, label in try_directives.handler_labels.items():
             labels_at.setdefault(target, []).append(label)
         parameter_start = code.get_registers_size() - code.get_ins_size()
-        debug_directives = _debug_directives(data, code.get_debug_info_off())
         parameter_names = _debug_parameter_names(
             data, code.get_debug_info_off(), method.CM.get_string
+        )
+        debug_directives = _debug_directives(
+            data,
+            code.get_debug_info_off(),
+            parameter_start,
+            method.CM.get_string,
+            method.CM.get_type,
+            _initial_parameter_locals(method, code, parameter_names),
         )
         lines: list[str] = []
         for offset, instruction in instructions:
