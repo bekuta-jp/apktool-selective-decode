@@ -1,8 +1,7 @@
 # Apktool Selective Decode (Unofficial Fork)
 
 ## 日本語
-このリポジトリは [iBotPeaches/Apktool](https://github.com/iBotPeaches/Apktool) をベースに、  
-大規模 APK の実験時に不要ファイル出力を減らすための選択的デコード機能を追加した非公式フォークです。
+このリポジトリは [iBotPeaches/Apktool](https://github.com/iBotPeaches/Apktool) をベースに、大規模 APK の実験時に不要ファイル出力を減らすための選択的デコード機能を追加した非公式フォークです。
 
 - 上流互換の基本ワークフロー（`decode` / `build`）は維持
 - `dex` / `AndroidManifest.xml` / `resources` ごとに処理方式を選択可能
@@ -29,12 +28,10 @@ apktool d app.apk --dex-mode raw --manifest-mode raw --res-mode skip
 - Apktool は違法行為を目的としたツールではありません。利用する国・地域の法令に従ってください。
 - ライセンスは Apache 2.0 です。再配布時は `LICENSE.md` を必ず同梱してください。
 
-公開手順（新規リポジトリ作成、remote 設定、初回 push）は  
-`PUBLISHING.md` を参照してください。
+公開手順（新規リポジトリ作成、remote 設定、初回 push）は `PUBLISHING.md` を参照してください。
 
 ## English
-This repository is an unofficial fork of [iBotPeaches/Apktool](https://github.com/iBotPeaches/Apktool),  
-focused on reducing unnecessary file output when experimenting with large APKs.
+This repository is an unofficial fork of [iBotPeaches/Apktool](https://github.com/iBotPeaches/Apktool), focused on reducing unnecessary file output when experimenting with large APKs.
 
 - Keeps the core upstream workflow (`decode` / `build`)
 - Adds per-component handling for `dex`, `AndroidManifest.xml`, and `resources`
@@ -61,9 +58,10 @@ apktool d app.apk --dex-mode raw --manifest-mode raw --res-mode skip
 - Apktool is not intended for piracy or illegal use. Follow your local laws and policies.
 - License: Apache 2.0. Keep `LICENSE.md` when redistributing.
 
-For publishing steps (creating a new remote repo, setting remotes, first push),  
-see `PUBLISHING.md`.
+For publishing steps (creating a new remote repo, setting remotes, first push), see `PUBLISHING.md`.
 
-## Attribution
-- Upstream project: [iBotPeaches/Apktool](https://github.com/iBotPeaches/Apktool)
+## Upstream Project
+- Source: [iBotPeaches/Apktool](https://github.com/iBotPeaches/Apktool)
+- Project page: [apktool.org](https://apktool.org)
+- Branches: `main` for Apktool 3.x, `2.x` for Apktool 2.x maintenance
 - Original copyright holders are retained in source headers.

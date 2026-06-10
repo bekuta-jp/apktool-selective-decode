@@ -16,6 +16,9 @@
  */
 package brut.androlib;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 public class Config {
     public enum DecodeSources { FULL, ONLY_MAIN_CLASSES, NONE }
     public enum DecodeResources { FULL, ONLY_MANIFEST, NONE }
@@ -29,7 +32,7 @@ public class Config {
     private int mJobs;
     private String mFrameworkDirectory;
     private String mFrameworkTag;
-    private String[] mLibraryFiles;
+    private final Map<String, String[]> mLibraryFiles;
     private boolean mForced;
     private boolean mVerbose;
 
@@ -61,7 +64,7 @@ public class Config {
         mJobs = Math.min(Runtime.getRuntime().availableProcessors(), 8);
         mFrameworkDirectory = null;
         mFrameworkTag = null;
-        mLibraryFiles = null;
+        mLibraryFiles = new LinkedHashMap<>();
         mForced = false;
         mVerbose = false;
 
@@ -117,12 +120,8 @@ public class Config {
         mFrameworkTag = frameworkTag;
     }
 
-    public String[] getLibraryFiles() {
+    public Map<String, String[]> getLibraryFiles() {
         return mLibraryFiles;
-    }
-
-    public void setLibraryFiles(String[] libraryFiles) {
-        mLibraryFiles = libraryFiles;
     }
 
     public boolean isForced() {

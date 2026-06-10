@@ -17,6 +17,7 @@
 package brut.androlib.res.table.value;
 
 import brut.androlib.exceptions.AndrolibException;
+import brut.androlib.res.table.ResConfig;
 import brut.androlib.res.table.ResEntry;
 import brut.androlib.res.table.ResEntrySpec;
 import brut.androlib.res.table.ResId;
@@ -60,10 +61,15 @@ public class ResFlags extends ResAttribute {
 
             // #2836 - Skip item if the resource cannot be resolved.
             if (skipUnresolved || keyId.pkgId() != pkg.getId()) {
-                Log.w(TAG, "Unresolved flag reference: key=%s, value=%s", key, symbol.getValue());
+                Log.w(TAG, "Unresolved flag symbol reference: " + key);
                 continue;
             }
 
+            Log.d(TAG, "Injecting dummy for unresolved flag symbol reference: " + key);
+            if (!pkg.hasTypeSpec(keyId.typeId())) {
+                pkg.addTypeSpec(keyId.typeId(), "id");
+                pkg.addType(keyId.typeId(), ResConfig.DEFAULT);
+            }
             pkg.addEntrySpec(keyId.typeId(), keyId.entryId(), ResEntrySpec.DUMMY_PREFIX + keyId);
             pkg.addEntry(keyId.typeId(), keyId.entryId(), ResCustom.ID);
         }
@@ -133,6 +139,12 @@ public class ResFlags extends ResAttribute {
                 }
             }
 
+            // Stop early if any of the flags are missing a symbol.
+            if (mask != data) {
+                mSymbolsCache.put(data, null);
+                return null;
+            }
+
             // Filter out redundant flags.
             if (symbolsCount > 2) {
                 Symbol[] filtered = new Symbol[symbolsCount];
@@ -164,9 +176,7 @@ public class ResFlags extends ResAttribute {
             }
         }
 
-        if (symbolsCount == 0) {
-            symbols = null;
-        } else if (symbolsCount < symbols.length) {
+        if (symbolsCount < symbols.length) {
             symbols = Arrays.copyOf(symbols, symbolsCount);
         }
 

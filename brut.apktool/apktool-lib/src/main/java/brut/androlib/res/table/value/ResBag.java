@@ -31,11 +31,11 @@ public abstract class ResBag extends ResValue implements ValuesXmlSerializable {
 
     public static ResBag parse(String typeName, ResReference parent, RawItem[] rawItems) {
         switch (typeName) {
+            case "array":
+                return ResArray.parse(parent, rawItems);
             case "attr":
             case "^attr-private":
                 return ResAttribute.parse(parent, rawItems);
-            case "array":
-                return ResArray.parse(parent, rawItems);
             case "plurals":
                 return ResPlural.parse(parent, rawItems);
             case "style":
@@ -62,6 +62,11 @@ public abstract class ResBag extends ResValue implements ValuesXmlSerializable {
 
         public ResItem getValue() {
             return mValue;
+        }
+
+        @Override
+        public String toString() {
+            return String.format("RawItem{key=0x%08x, value=%s}", mKey, mValue);
         }
     }
 

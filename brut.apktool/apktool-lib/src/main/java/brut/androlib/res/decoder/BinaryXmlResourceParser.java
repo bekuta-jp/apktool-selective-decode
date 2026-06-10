@@ -29,6 +29,7 @@ import com.google.common.io.BaseEncoding;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 
+import java.io.BufferedInputStream;
 import java.io.InputStream;
 import java.io.IOException;
 import java.io.Reader;
@@ -108,7 +109,7 @@ public class BinaryXmlResourceParser implements XmlPullParser {
         }
 
         reset();
-        mIn = new BinaryDataInputStream(inputStream);
+        mIn = new BinaryDataInputStream(new BufferedInputStream(inputStream));
         mParser = new ResChunkPullParser(mIn);
         try {
             if (!nextChunk()) {
@@ -276,7 +277,7 @@ public class BinaryXmlResourceParser implements XmlPullParser {
         // namespace, but it's better than not resolving it at all.
         if (attr.ns < 0) {
             if (nameId.pkgId() == ResTable.APP_PACKAGE_ID) {
-                return getNonDefaultNamespaceUri(index);
+                return ResXmlUtils.ANDROID_RES_NS_AUTO;
             }
             if (nameId.pkgId() == ResTable.SYS_PACKAGE_ID) {
                 return ResXmlUtils.ANDROID_RES_NS;
@@ -291,7 +292,7 @@ public class BinaryXmlResourceParser implements XmlPullParser {
             return uri;
         }
         if (nameId.pkgId() == ResTable.APP_PACKAGE_ID) {
-            return getNonDefaultNamespaceUri(index);
+            return ResXmlUtils.ANDROID_RES_NS_AUTO;
         }
         return ResXmlUtils.ANDROID_RES_NS;
     }
@@ -331,7 +332,7 @@ public class BinaryXmlResourceParser implements XmlPullParser {
                 ResPackage pkg = mTable.getMainPackage();
                 if (pkg == null) {
                     // If no main package, we load "android" package instead.
-                    pkg = mTable.resolvePackageGroup(1).getBasePackage();
+                    pkg = mTable.resolvePackageGroup(ResTable.SYS_PACKAGE_ID).getBasePackage();
                 }
 
                 // #2836 - Skip item if the resource cannot be resolved.
@@ -341,6 +342,12 @@ public class BinaryXmlResourceParser implements XmlPullParser {
                     return name;
                 }
 
+                Log.d(TAG, "Injecting dummy for unresolved attr reference: ns=%s, name=%s, id=%s",
+                    getAttributePrefix(index), name, nameId);
+                if (!pkg.hasTypeSpec(nameId.typeId())) {
+                    pkg.addTypeSpec(nameId.typeId(), "attr");
+                    pkg.addType(nameId.typeId(), ResConfig.DEFAULT);
+                }
                 if (name.isEmpty()) {
                     name = ResEntrySpec.DUMMY_PREFIX + nameId;
                 }
@@ -408,7 +415,7 @@ public class BinaryXmlResourceParser implements XmlPullParser {
             ResPackage pkg = mTable.getMainPackage();
             if (pkg == null) {
                 // If no main package, we load "android" package instead.
-                pkg = mTable.resolvePackageGroup(1).getBasePackage();
+                pkg = mTable.resolvePackageGroup(ResTable.SYS_PACKAGE_ID).getBasePackage();
             }
 
             if (attr.valueType == ResValue.TYPE_STRING) {
@@ -569,17 +576,6 @@ public class BinaryXmlResourceParser implements XmlPullParser {
     }
 
     // Utility methods
-
-    private String getNonDefaultNamespaceUri(int pos) {
-        String prefix = getNamespacePrefix(pos);
-        if (prefix == null) {
-            // If we are here, there is some clever obfuscation going on.
-            // Our reference points to the namespace are gone. We have the namespaces that can't be touched in the
-            // opening tag, though no known way to correlate them at this time, so return the res-auto namespace.
-            return ResXmlUtils.ANDROID_RES_NS_AUTO;
-        }
-        return getNamespaceUri(pos);
-    }
 
     private Attribute getAttribute(int index) {
         if (mEventType != START_TAG) {
@@ -779,6 +775,7 @@ public class BinaryXmlResourceParser implements XmlPullParser {
 
         Log.d(TAG, "End of chunks at 0x%08x", mIn.position());
 
+        // We can't use remaining() here, the length of the main stream is unknown.
         if (mIn.available() > 0) {
             Log.d(TAG, "Ignoring trailing data at 0x%08x.", mIn.position());
         }

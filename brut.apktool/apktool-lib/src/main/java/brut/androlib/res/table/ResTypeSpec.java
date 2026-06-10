@@ -16,9 +16,26 @@
  */
 package brut.androlib.res.table;
 
+import brut.androlib.res.table.value.ResItem;
+import com.google.common.collect.Sets;
+
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public class ResTypeSpec {
+    private static final Map<String, Set<String>> STANDARD_TYPE_FORMATS = new HashMap<>();
+    static {
+        STANDARD_TYPE_FORMATS.put("bool", Sets.newHashSet("boolean"));
+        STANDARD_TYPE_FORMATS.put("color", Sets.newHashSet("color"));
+        STANDARD_TYPE_FORMATS.put("dimen", Sets.newHashSet("float", "fraction", "dimension"));
+        STANDARD_TYPE_FORMATS.put("drawable", Sets.newHashSet("color"));
+        STANDARD_TYPE_FORMATS.put("fraction", Sets.newHashSet("float", "fraction", "dimension"));
+        STANDARD_TYPE_FORMATS.put("integer", Sets.newHashSet("integer"));
+        STANDARD_TYPE_FORMATS.put("string", Sets.newHashSet("string"));
+    }
+
     private final ResPackage mPackage;
     private final int mId;
     private final String mName;
@@ -27,7 +44,40 @@ public class ResTypeSpec {
         assert pkg != null && id > 0 && name != null;
         mPackage = pkg;
         mId = id;
-        mName = name;
+        // Some apps may have obfuscated or malicious type names.
+        mName = isValidTypeName(name) ? name : String.format("invalid%02X", id);
+    }
+
+    private static boolean isValidTypeName(String name) {
+        switch (name) {
+            case "anim":
+            case "animator":
+            case "array":
+            case "attr":
+            case "^attr-private":
+            case "bool":
+            case "color":
+            case "dimen":
+            case "drawable":
+            case "font":
+            case "fraction":
+            case "id":
+            case "integer":
+            case "interpolator":
+            case "layout":
+            case "menu":
+            case "mipmap":
+            case "navigation":
+            case "plurals":
+            case "raw":
+            case "string":
+            case "style":
+            case "transition":
+            case "xml":
+                return true;
+            default:
+                return false;
+        }
     }
 
     public ResPackage getPackage() {
@@ -44,15 +94,32 @@ public class ResTypeSpec {
 
     public boolean isBagType() {
         switch (mName) {
+            case "array":
             case "attr":
             case "^attr-private":
-            case "array":
             case "plurals":
             case "style":
                 return true;
             default:
                 return false;
         }
+    }
+
+    public boolean isValueCompatible(ResItem value) {
+        // Bag types don't support item values.
+        if (isBagType()) {
+            return false;
+        }
+        String format = value.getFormat();
+        if (format == null) {
+            return false;
+        }
+        // All item types support the reference format.
+        if (format.equals("reference")) {
+            return true;
+        }
+        Set<String> typeFormats = STANDARD_TYPE_FORMATS.get(mName);
+        return typeFormats != null && typeFormats.contains(format);
     }
 
     @Override

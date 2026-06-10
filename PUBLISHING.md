@@ -2,7 +2,7 @@
 
 ## 日本語
 
-このフォークを「新規リポジトリ」として公開するための最短手順です。  
+このフォークを「新規リポジトリ」として公開するための最短手順です。
 ここでは、Codex が代行できない作業（あなたしかできない作業）を明示します。
 
 ### 1. あなたしかできない作業
@@ -55,7 +55,7 @@ git push --force-with-lease fork-origin HEAD:main
 
 ## English
 
-This is the shortest path to publish this fork as a **new repository**.  
+This is the shortest path to publish this fork as a **new repository**.
 The steps below explicitly separate what only you can do.
 
 ### 1. Tasks only you can do

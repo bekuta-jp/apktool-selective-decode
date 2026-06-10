@@ -24,12 +24,21 @@ import brut.androlib.res.table.*;
 import brut.androlib.res.table.value.*;
 import brut.common.Log;
 import brut.util.BinaryDataInputStream;
+import brut.util.Pair;
 import com.google.common.io.BaseEncoding;
-import org.apache.commons.lang3.tuple.Pair;
 
-import java.io.*;
+import java.io.BufferedInputStream;
+import java.io.InputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
 
 public class BinaryResourceParser {
     private static final String TAG = BinaryResourceParser.class.getName();
@@ -82,8 +91,8 @@ public class BinaryResourceParser {
     private int mTypeIdOffset;
     private ResStringPool mTypeStringPool;
     private ResStringPool mKeyStringPool;
-    private boolean mSparseEntries;
-    private boolean mCompactEntries;
+    private boolean mHasSparseEntries;
+    private boolean mHasCompactEntries;
     private List<Pair<Long, Integer>> mEntrySpecFlagsOffsets;
 
     public BinaryResourceParser(ResTable table, boolean keepBrokenResources, boolean allowDummyEntrySpecs) {
@@ -94,12 +103,12 @@ public class BinaryResourceParser {
         mInvalidConfigs = new HashSet<>();
     }
 
-    public boolean isSparseEntries() {
-        return mSparseEntries;
+    public boolean hasSparseEntries() {
+        return mHasSparseEntries;
     }
 
-    public boolean isCompactEntries() {
-        return mCompactEntries;
+    public boolean hasCompactEntries() {
+        return mHasCompactEntries;
     }
 
     public void enableCollectFlagsOffsets() {
@@ -112,7 +121,7 @@ public class BinaryResourceParser {
 
     public void parse(InputStream in) throws AndrolibException {
         reset();
-        mIn = new BinaryDataInputStream(in);
+        mIn = new BinaryDataInputStream(new BufferedInputStream(in));
 
         ResChunkPullParser parser = new ResChunkPullParser(mIn);
         try {
@@ -146,8 +155,8 @@ public class BinaryResourceParser {
         mTypeIdOffset = 0;
         mTypeStringPool = null;
         mKeyStringPool = null;
-        mSparseEntries = false;
-        mCompactEntries = false;
+        mHasSparseEntries = false;
+        mHasCompactEntries = false;
         if (mEntrySpecFlagsOffsets != null) {
             mEntrySpecFlagsOffsets.clear();
         }
@@ -354,7 +363,7 @@ public class BinaryResourceParser {
         boolean isSparse = (flags & TYPE_FLAG_SPARSE) != 0;
 
         if (isSparse) {
-            mSparseEntries = true;
+            mHasSparseEntries = true;
         }
 
         // #3778 - In some apps the res entries are unordered and might have to jump backwards.
@@ -591,7 +600,7 @@ public class BinaryResourceParser {
         }
 
         if (isCompact) {
-            mCompactEntries = true;
+            mHasCompactEntries = true;
         }
 
         ResValue value;

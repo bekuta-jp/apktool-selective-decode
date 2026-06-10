@@ -68,6 +68,31 @@ public class SelectiveDecodeModeTest extends BaseTest {
     }
 
     @Test
+    public void decodeManifestWithResourcesButSkipResourceOutputTest() throws Exception {
+        File testApk = new File(sTmpDir, TEST_APK);
+
+        sConfig.setDecodeDexMode(Config.DecodeMode.SKIP);
+        sConfig.setDecodeManifestMode(Config.DecodeMode.DECODE);
+        sConfig.setDecodeResMode(Config.DecodeMode.DECODE);
+
+        File controlDir = new File(testApk + ".out.selective.manifest.control");
+        new ApkDecoder(testApk, sConfig).decode(controlDir);
+
+        sConfig.setDecodeDexMode(Config.DecodeMode.SKIP);
+        sConfig.setDecodeManifestMode(Config.DecodeMode.DECODE);
+        sConfig.setDecodeResMode(Config.DecodeMode.SKIP);
+
+        File testDir = new File(testApk + ".out.selective.manifest.res.skip.loaded");
+        new ApkDecoder(testApk, sConfig).decode(testDir);
+
+        assertTrue(new File(testDir, "AndroidManifest.xml").isFile());
+        assertFalse(new File(testDir, "resources.arsc").isFile());
+        assertFalse(new File(testDir, "res").isDirectory());
+        assertFalse(new File(testDir, "unknown/res").isDirectory());
+        compareXmlFiles(controlDir, testDir, "AndroidManifest.xml");
+    }
+
+    @Test
     public void decodeManifestAndResSkipTest() throws Exception {
         sConfig.setDecodeDexMode(Config.DecodeMode.SKIP);
         sConfig.setDecodeManifestMode(Config.DecodeMode.SKIP);

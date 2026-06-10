@@ -77,7 +77,9 @@ jobs:
           distribution: 'zulu'
           java-version: ${{ matrix.java }}
 
-      - uses: gradle/actions/setup-gradle@v5.0.1
+      - uses: gradle/actions/setup-gradle@v6.1.0
+        with:
+          cache-provider: basic
 
       - name: Build (Linux/Mac)
         if: runner.os != 'Windows'
@@ -103,8 +105,9 @@ jobs:
           distribution: 'zulu'
           java-version: 17
 
-      - uses: gradle/actions/setup-gradle@v5.0.1
+      - uses: gradle/actions/setup-gradle@v6.1.0
         with:
+          cache-provider: basic
           dependency-graph: generate-and-submit
 
       - name: Build (Linux/Mac)
@@ -116,7 +119,7 @@ jobs:
         run: ./gradlew.bat build shadowJar proguard
 
       - name: Upload
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: apktool.jar
-          path: brut.apktool/apktool-cli/build/libs/apktool-v*
+          path: brut.apktool/apktool-cli/build/libs/apktool_v*
