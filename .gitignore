@@ -17,6 +17,10 @@ gradle.properties
 *.kate-swp
 *~
 *.DS_Store
+__pycache__/
+*.pyc
+.venv/
+local_results/
 
 # IntelliJ
 *.iml

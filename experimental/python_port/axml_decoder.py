@@ -6,7 +6,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import html
 import struct
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Callable, List, Optional, Sequence, Tuple
 
 
 RES_XML_TYPE = 0x0003
@@ -25,6 +25,8 @@ TYPE_STRING = 0x03
 TYPE_FLOAT = 0x04
 TYPE_DIMENSION = 0x05
 TYPE_FRACTION = 0x06
+TYPE_DYNAMIC_REFERENCE = 0x07
+TYPE_DYNAMIC_ATTRIBUTE = 0x08
 TYPE_INT_DEC = 0x10
 TYPE_INT_HEX = 0x11
 TYPE_INT_BOOLEAN = 0x12
@@ -33,6 +35,9 @@ TYPE_LAST_COLOR_INT = 0x1F
 
 UTF8_FLAG = 0x00000100
 NO_INDEX = 0xFFFFFFFF
+
+ResourceResolver = Callable[[int], Optional[str]]
+AttributeValueResolver = Callable[[int, int, int], Optional[str]]
 
 
 class AxmlDecodeError(Exception):
@@ -133,17 +138,31 @@ def _parse_string_pool(data: bytes, chunk_off: int, header_size: int, chunk_size
     return StringPool(strings)
 
 
-def _format_typed_value(value_type: int, value_data: int, pool: StringPool) -> str:
+def _format_typed_value(
+    value_type: int,
+    value_data: int,
+    pool: StringPool,
+    resource_resolver: Optional[ResourceResolver],
+) -> str:
     if value_type == TYPE_NULL:
         return ""
-    if value_type == TYPE_REFERENCE:
+    if value_type in {TYPE_REFERENCE, TYPE_DYNAMIC_REFERENCE}:
+        if resource_resolver is not None:
+            resolved = resource_resolver(value_data)
+            if resolved:
+                return resolved
         return "@0x%08x" % value_data
-    if value_type == TYPE_ATTRIBUTE:
+    if value_type in {TYPE_ATTRIBUTE, TYPE_DYNAMIC_ATTRIBUTE}:
         return "?0x%08x" % value_data
     if value_type == TYPE_STRING:
         return pool.get(value_data)
     if value_type == TYPE_FLOAT:
-        return str(struct.unpack("<f", struct.pack("<I", value_data))[0])
+        value = struct.unpack("<f", struct.pack("<I", value_data))[0]
+        for precision in range(1, 10):
+            candidate = format(value, f".{precision}g")
+            if struct.pack("<f", float(candidate)) == struct.pack("<f", value):
+                return candidate
+        return format(value, ".9g")
     if value_type == TYPE_DIMENSION:
         return "0x%08x" % value_data
     if value_type == TYPE_FRACTION:
@@ -166,7 +185,12 @@ def _lookup_prefix(uri: str, ns_stack: Sequence[Tuple[str, str]]) -> str:
     return ""
 
 
-def decode_axml(xml_bytes: bytes) -> str:
+def decode_axml(
+    xml_bytes: bytes,
+    resource_resolver: Optional[ResourceResolver] = None,
+    attribute_value_resolver: Optional[AttributeValueResolver] = None,
+    apktool_compatible: bool = False,
+) -> str:
     if len(xml_bytes) < 8:
         raise AxmlDecodeError("Input too small")
 
@@ -252,11 +276,26 @@ def decode_axml(xml_bytes: bytes) -> str:
                     if a_raw != NO_INDEX:
                         attr_value = pool.get(a_raw)
                     else:
-                        attr_value = _format_typed_value(value_type, value_data, pool)
+                        attr_resource_id = resource_map[a_name] if a_name < len(resource_map) else 0
+                        attr_value = None
+                        if attribute_value_resolver is not None and attr_resource_id:
+                            attr_value = attribute_value_resolver(
+                                attr_resource_id, value_type, value_data
+                            )
+                        if attr_value is None:
+                            attr_value = _format_typed_value(
+                                value_type, value_data, pool, resource_resolver
+                            )
 
                     if not attr_name and a_name < len(resource_map):
                         attr_name = "res_0x%08x" % resource_map[a_name]
 
+                    if (
+                        apktool_compatible
+                        and tag_name == "manifest"
+                        and attr_name.rsplit(":", 1)[-1] in {"versionCode", "versionName"}
+                    ):
+                        continue
                     attrs.append((attr_name, attr_value))
 
                 events.append(StartEvent(depth=depth, tag=tag_name, attrs=attrs, namespaces=list(ns_stack)))
@@ -281,10 +320,26 @@ def decode_axml(xml_bytes: bytes) -> str:
 
         off += chunk_size
 
+    if apktool_compatible:
+        filtered: List[object] = []
+        skipped_depth: Optional[int] = None
+        for event in events:
+            if skipped_depth is not None:
+                if isinstance(event, EndEvent) and event.depth == skipped_depth:
+                    skipped_depth = None
+                continue
+            if isinstance(event, StartEvent) and event.tag == "uses-sdk":
+                skipped_depth = event.depth
+                continue
+            filtered.append(event)
+        events = filtered
+
     lines = ['<?xml version="1.0" encoding="utf-8"?>']
     root_ns_written = False
+    event_index = 0
 
-    for event in events:
+    while event_index < len(events):
+        event = events[event_index]
         if isinstance(event, StartEvent):
             indent = "    " * event.depth
             parts = [f"{indent}<{event.tag}"]
@@ -301,13 +356,27 @@ def decode_axml(xml_bytes: bytes) -> str:
                         parts.append(f' xmlns="{html.escape(uri, quote=True)}"')
                 root_ns_written = True
 
-            for name, value in event.attrs:
+            attrs = event.attrs
+            if apktool_compatible:
+                attrs = sorted(attrs, key=lambda item: item[0].rsplit(":", 1)[-1])
+
+            for name, value in attrs:
                 if not name:
                     continue
-                parts.append(f' {name}="{html.escape(value, quote=True)}"')
+                escaped = html.escape(value.replace("\\", "\\\\"), quote=True)
+                parts.append(f' {name}="{escaped}"')
 
-            parts.append(">")
+            is_empty = (
+                apktool_compatible
+                and event_index + 1 < len(events)
+                and isinstance(events[event_index + 1], EndEvent)
+                and events[event_index + 1].depth == event.depth
+                and events[event_index + 1].tag == event.tag
+            )
+            parts.append("/>" if is_empty else ">")
             lines.append("".join(parts))
+            if is_empty:
+                event_index += 1
 
         elif isinstance(event, EndEvent):
             indent = "    " * event.depth
@@ -316,5 +385,7 @@ def decode_axml(xml_bytes: bytes) -> str:
         elif isinstance(event, TextEvent):
             indent = "    " * event.depth
             lines.append(f"{indent}{html.escape(event.text)}")
+
+        event_index += 1
 
     return "\n".join(lines) + "\n"

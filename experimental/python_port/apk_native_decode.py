@@ -5,15 +5,16 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 from pathlib import Path
 import re
 import shutil
 import sys
+import time
 import zipfile
 
 from axml_decoder import AxmlDecodeError, decode_axml
-from dex_decoder import DexDecodeError, decode_dex
+from dex_decoder import decode_dex, generate_smali_files
+from resource_resolver import ApkResourceResolver, resolve_manifest_attribute
 
 
 DEX_NAME_RE = re.compile(r"^classes(?:\d+)?\.dex$")
@@ -45,7 +46,18 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("-o", "--out", default="native_decode_out", help="Output directory")
     p.add_argument("--manifest-mode", choices=["decode", "raw", "skip"], default="decode")
     p.add_argument("--dex-mode", choices=["decode", "raw", "skip"], default="decode")
+    p.add_argument(
+        "--smali-mode",
+        choices=["disassemble", "skeleton", "skip"],
+        default="disassemble",
+        help="Write instruction-level or structural .smali files when dex is decoded.",
+    )
     p.add_argument("--preview-limit", type=int, default=32, help="Preview entry count in dex json")
+    p.add_argument(
+        "--include-signatures",
+        action="store_true",
+        help="Include full class/method signature lists in dex decoded json (large output).",
+    )
     return p.parse_args(argv)
 
 
@@ -70,9 +82,14 @@ def main(argv: list[str]) -> int:
         "dex_mode": args.dex_mode,
         "manifest": "skip",
         "manifest_error": None,
+        "resource_resolution": "not_used",
+        "resource_resolution_error": None,
         "dex_total": 0,
         "dex_decoded": 0,
         "dex_raw": 0,
+        "smali_mode": args.smali_mode,
+        "smali_files": 0,
+        "dex_results": [],
         "dex_errors": [],
     }
 
@@ -95,7 +112,18 @@ def main(argv: list[str]) -> int:
                 data = zipf.read(manifest_name)
                 out_path = out_dir / "manifest" / "AndroidManifest.xml"
                 try:
-                    xml_text = decode_axml(data)
+                    arsc_data = zipf.read("resources.arsc") if "resources.arsc" in names else None
+                    resolver = ApkResourceResolver(arsc_data)
+                    summary["resource_resolution"] = (
+                        "apk_and_framework" if resolver.available else "framework_only"
+                    )
+                    summary["resource_resolution_error"] = resolver.error
+                    xml_text = decode_axml(
+                        data,
+                        resource_resolver=resolver.resolve,
+                        attribute_value_resolver=resolve_manifest_attribute,
+                        apktool_compatible=True,
+                    )
                     _write_text(out_path, xml_text)
                     print(f"I: manifest decoded -> {out_path}")
                     summary["manifest"] = "decoded"
@@ -118,30 +146,82 @@ def main(argv: list[str]) -> int:
             print(f"I: dex skipped ({len(dex_names)} files)")
         elif args.dex_mode == "raw":
             for dex_name in dex_names:
+                started = time.perf_counter()
                 out_path = out_dir / "dex" / "raw" / dex_name
                 _copy_raw(zipf, dex_name, out_path)
                 summary["dex_raw"] += 1
+                summary["dex_results"].append(
+                    {
+                        "dex": dex_name,
+                        "status": "raw",
+                        "smali_files": 0,
+                        "elapsed_sec": round(time.perf_counter() - started, 3),
+                    }
+                )
             print(f"I: dex raw copied ({summary['dex_raw']}/{summary['dex_total']})")
         else:
             for dex_name in dex_names:
+                started = time.perf_counter()
+                smali_before = summary["smali_files"]
                 data = zipf.read(dex_name)
                 out_path = out_dir / "dex" / "decoded" / f"{dex_name}.json"
                 try:
-                    decoded = decode_dex(data, preview_limit=max(1, args.preview_limit))
+                    decoded = decode_dex(
+                        data,
+                        preview_limit=max(1, args.preview_limit),
+                        include_method_signatures=args.include_signatures,
+                    )
                     _write_json(out_path, decoded)
+
+                    if args.smali_mode != "skip":
+                        smali_root_name = "smali" if dex_name == "classes.dex" else dex_name[:-4].replace("classes", "smali_classes")
+                        for rel_path, smali_text in generate_smali_files(
+                            data, disassemble=args.smali_mode == "disassemble"
+                        ).items():
+                            _write_text(out_dir / smali_root_name / rel_path, smali_text)
+                            summary["smali_files"] += 1
+
                     summary["dex_decoded"] += 1
-                except DexDecodeError as ex:
+                    dex_result = {
+                        "dex": dex_name,
+                        "status": "decoded",
+                        "classes": decoded["counts"]["classes"],
+                        "defined_methods": decoded["counts"]["defined_methods"],
+                        "smali_files": summary["smali_files"] - smali_before,
+                        "elapsed_sec": round(time.perf_counter() - started, 3),
+                    }
+                    summary["dex_results"].append(dex_result)
+                    print(
+                        "I: dex processed | "
+                        f"dex={dex_name} classes={dex_result['classes']} "
+                        f"smali={dex_result['smali_files']} "
+                        f"elapsed={dex_result['elapsed_sec']:.3f}s"
+                    )
+                except Exception as ex:
                     summary["dex_errors"].append({"dex": dex_name, "error": str(ex)})
+                    summary["dex_results"].append(
+                        {
+                            "dex": dex_name,
+                            "status": "error",
+                            "error": str(ex),
+                            "smali_files": summary["smali_files"] - smali_before,
+                            "elapsed_sec": round(time.perf_counter() - started, 3),
+                        }
+                    )
                     print(f"W: dex decode failed for {dex_name}: {ex}")
 
-            print(f"I: dex decoded ({summary['dex_decoded']}/{summary['dex_total']})")
+            print(
+                f"I: dex decoded ({summary['dex_decoded']}/{summary['dex_total']}); "
+                f"smali_files={summary['smali_files']}"
+            )
 
     _write_json(out_dir / "summary.json", summary)
     print("I: summary written ->", out_dir / "summary.json")
     print(
         "I: done | "
         f"manifest={summary['manifest']} | "
-        f"dex_total={summary['dex_total']} dex_decoded={summary['dex_decoded']} dex_raw={summary['dex_raw']}"
+        f"dex_total={summary['dex_total']} dex_decoded={summary['dex_decoded']} "
+        f"dex_raw={summary['dex_raw']} smali_files={summary['smali_files']}"
     )
 
     return 0
