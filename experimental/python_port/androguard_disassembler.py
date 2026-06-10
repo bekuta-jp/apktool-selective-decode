@@ -4,12 +4,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
+import math
 import re
 import struct
-from typing import Dict, Optional
+from typing import Callable, Dict, Optional
 
 
-REGISTER_RE = re.compile(r"(?<![A-Za-z0-9_/$])v(\d+)(?=$|[\s,}])")
+REGISTER_RE = re.compile(r"(?<![A-Za-z0-9_/$>])v(\d+)(?=$|[\s,}])")
 FIELD_RE = re.compile(r"(L[^;]+;->[^\s,(]+)\s+(\[*(?:[ZBSCIJFDV]|L[^;]+;))")
 METHOD_RE = re.compile(r"(L[^;]+;->[^\s(]+\()([^)]*)(\)\S+)")
 OFFSET_RE = re.compile(r"[+-][0-9a-fA-F]+h")
@@ -29,13 +31,14 @@ class DexDisassembly:
     class_annotations: Dict[str, list[str]]
     field_annotations: Dict[str, list[str]]
     method_annotations: Dict[str, list[str]]
+    parameter_annotations: Dict[str, list[str]]
 
 
 @dataclass
 class TryDirectives:
     starts: Dict[int, list[str]]
     ends: Dict[int, list[str]]
-    handler_labels: Dict[int, str]
+    handler_labels: Dict[int, list[str]]
 
 
 def _method_key(class_name: str, method_name: str, descriptor: str) -> str:
@@ -82,7 +85,15 @@ def _label_kind(name: str) -> str:
 
 
 def _array_literal(value: int, width: int) -> str:
-    suffix = {1: "t", 2: "s", 4: "", 8: "L"}.get(width, "")
+    suffix = {1: "t", 2: "s"}.get(width, "")
+    if width == 8 and not (-0x80000000 <= value <= 0x7FFFFFFF):
+        suffix = "L"
+    return _hex_literal(value, suffix)
+
+
+def _hex_literal(value: int, suffix: str = "") -> str:
+    if value < 0:
+        return f"-0x{-value:x}{suffix}"
     return f"0x{value:x}{suffix}"
 
 
@@ -94,6 +105,8 @@ def _quote_string(value: str) -> str:
             parts.append("\\\\")
         elif char == '"':
             parts.append('\\"')
+        elif char == "'":
+            parts.append("\\'")
         elif char == "\n":
             parts.append("\\n")
         elif char == "\r":
@@ -111,28 +124,256 @@ def _quote_string(value: str) -> str:
     return '"' + "".join(parts) + '"'
 
 
-def _field_initializer(field: object) -> Optional[str]:
+def _decode_mutf8_code_units(data: bytes) -> str:
+    code_units: list[str] = []
+    offset = 0
+    while offset < len(data):
+        first = data[offset]
+        offset += 1
+        if first < 0x80:
+            code_units.append(chr(first))
+            continue
+        if first & 0xE0 == 0xC0 and offset < len(data):
+            second = data[offset]
+            offset += 1
+            code_units.append(chr(((first & 0x1F) << 6) | (second & 0x3F)))
+            continue
+        if first & 0xF0 == 0xE0 and offset + 1 < len(data):
+            second = data[offset]
+            third = data[offset + 1]
+            offset += 2
+            code_units.append(
+                chr(
+                    ((first & 0x0F) << 12)
+                    | ((second & 0x3F) << 6)
+                    | (third & 0x3F)
+                )
+            )
+            continue
+        raise UnicodeDecodeError(
+            "mutf-8",
+            data,
+            offset - 1,
+            offset,
+            "invalid MUTF-8 sequence",
+        )
+    return "".join(code_units)
+
+
+def _quote_char(value: int) -> str:
+    char = chr(value)
+    escapes = {
+        "\\": "\\\\",
+        "'": "\\'",
+        '"': '\\"',
+        "\n": "\\n",
+        "\r": "\\r",
+        "\t": "\\t",
+    }
+    if char in escapes:
+        rendered = escapes[char]
+    elif 0x20 <= value <= 0x7E:
+        rendered = char
+    else:
+        rendered = f"\\u{value:04x}"
+    return f"'{rendered}'"
+
+
+def _java_decimal(value: float, *, float32: bool) -> str:
+    if math.isnan(value):
+        return "NaN"
+    if math.isinf(value):
+        return "-Infinity" if value < 0 else "Infinity"
+
+    if float32:
+        packed = struct.pack("<f", value)
+        bits = struct.unpack("<I", packed)[0]
+        if bits == 0x00000001:
+            return "1.4E-45"
+        if bits == 0x80000001:
+            return "-1.4E-45"
+        candidate = repr(value)
+        for precision in range(1, 10):
+            current = format(value, f".{precision}g")
+            try:
+                current_packed = struct.pack("<f", float(current))
+            except OverflowError:
+                continue
+            if current_packed == packed:
+                candidate = current
+                break
+    else:
+        bits = struct.unpack("<Q", struct.pack("<d", value))[0]
+        if bits == 0x0000000000000001:
+            return "4.9E-324"
+        if bits == 0x8000000000000001:
+            return "-4.9E-324"
+        candidate = repr(value)
+
+    absolute = abs(value)
+    if value != 0.0 and (absolute < 1e-3 or absolute >= 1e7):
+        coefficient, exponent = format(Decimal(candidate).normalize(), "E").split("E")
+        if "." not in coefficient:
+            coefficient += ".0"
+        return f"{coefficient}E{int(exponent)}"
+
+    rendered = format(Decimal(candidate), "f")
+    if "." not in rendered:
+        rendered += ".0"
+    return rendered
+
+
+def _scientific_text(value: int | float) -> str:
+    if isinstance(value, int):
+        negative = value < 0
+        digits = str(abs(value))
+        if value == 0:
+            return "0E0"
+        exponent = len(digits) - 1
+        fraction = digits[1:].rstrip("0")
+        coefficient = digits[0] + (f".{fraction}" if fraction else "")
+        return ("-" if negative else "") + coefficient + f"E{exponent}"
+
+    if math.isnan(value):
+        return "NaN"
+    if math.isinf(value):
+        return "-I" if value < 0 else "I"
+    if value == 0.0:
+        return "0E0"
+    coefficient, exponent = format(Decimal(repr(value)).normalize(), "E").split("E")
+    return f"{coefficient}E{int(exponent)}"
+
+
+def _strip_likely_imprecision(value: str) -> str:
+    decimal_point = value.find(".")
+    exponent = value.find("E")
+    for pattern in ("000", "999"):
+        index = value.find(pattern)
+        if index > decimal_point and index < exponent:
+            return value[:index] + value[exponent:]
+    return value
+
+
+def _is_likely_float(value: int) -> bool:
+    unsigned = value & 0xFFFFFFFF
+    named = {
+        0x7FC00000,
+        0x7F7FFFFF,
+        struct.unpack("<I", struct.pack("<f", math.pi))[0],
+        struct.unpack("<I", struct.pack("<f", math.e))[0],
+    }
+    if unsigned in named:
+        return True
+    if value in {0x7FFFFFFF, -0x80000000}:
+        return False
+
+    package_id = unsigned >> 24
+    resource_type = unsigned >> 16 & 0xFF
+    resource_id = unsigned & 0xFFFF
+    if package_id in {0x7F, 1} and resource_type < 0x1F and resource_id < 0xFFF:
+        return False
+
+    float_value = struct.unpack("<f", struct.pack("<I", unsigned))[0]
+    if math.isnan(float_value):
+        return False
+    as_int = _scientific_text(value)
+    as_float = _strip_likely_imprecision(_scientific_text(float_value))
+    return len(as_float) < len(as_int)
+
+
+def _is_likely_double(value: int) -> bool:
+    unsigned = value & 0xFFFFFFFFFFFFFFFF
+    named = {
+        0x7FF8000000000000,
+        0x7FEFFFFFFFFFFFFF,
+        struct.unpack("<Q", struct.pack("<d", math.pi))[0],
+        struct.unpack("<Q", struct.pack("<d", math.e))[0],
+    }
+    if unsigned in named:
+        return True
+    if value in {0x7FFFFFFFFFFFFFFF, -0x8000000000000000}:
+        return False
+
+    double_value = struct.unpack("<d", struct.pack("<Q", unsigned))[0]
+    if math.isnan(double_value):
+        return False
+    as_long = _scientific_text(value)
+    as_double = _strip_likely_imprecision(_scientific_text(double_value))
+    return len(as_double) < len(as_long)
+
+
+def _literal_comment(name: str, value: int) -> Optional[str]:
+    wide = name.startswith("const-wide")
+    if wide:
+        if not _is_likely_double(value):
+            return None
+        unsigned = value & 0xFFFFFFFFFFFFFFFF
+        double_value = struct.unpack("<d", struct.pack("<Q", unsigned))[0]
+        if math.isinf(double_value):
+            return (
+                "Double.NEGATIVE_INFINITY"
+                if double_value < 0
+                else "Double.POSITIVE_INFINITY"
+            )
+        if math.isnan(double_value):
+            return "Double.NaN"
+        if unsigned == 0x7FEFFFFFFFFFFFFF:
+            return "Double.MAX_VALUE"
+        if double_value == math.pi:
+            return "Math.PI"
+        if double_value == math.e:
+            return "Math.E"
+        return _java_decimal(double_value, float32=False)
+
+    if not _is_likely_float(value):
+        return None
+    unsigned = value & 0xFFFFFFFF
+    float_value = struct.unpack("<f", struct.pack("<I", unsigned))[0]
+    if math.isinf(float_value):
+        return (
+            "Float.NEGATIVE_INFINITY"
+            if float_value < 0
+            else "Float.POSITIVE_INFINITY"
+        )
+    if math.isnan(float_value):
+        return "Float.NaN"
+    if unsigned == 0x7F7FFFFF:
+        return "Float.MAX_VALUE"
+    if unsigned == struct.unpack("<I", struct.pack("<f", math.pi))[0]:
+        return "(float)Math.PI"
+    if unsigned == struct.unpack("<I", struct.pack("<f", math.e))[0]:
+        return "(float)Math.E"
+    return _java_decimal(float_value, float32=True) + "f"
+
+
+def _field_initializer(
+    field: object,
+    assigned_static_fields: set[str],
+    string_resolver: Callable[[int], str],
+) -> Optional[str]:
     encoded = field.get_init_value()
     if encoded is None:
         return None
-
+    field_key = (
+        f"{field.get_class_name()}->{field.get_name()}:{field.get_descriptor()}"
+    )
     value_type = encoded.get_value_type()
-    value = encoded.get_value()
-    if value_type == 0x17:
-        return _quote_string(str(value))
-    if value_type == 0x1F:
-        return "true" if value else None
-    if value_type == 0x1E:
+    raw_value = encoded.get_value()
+    is_default = (
+        value_type == 0x1E
+        or (value_type == 0x1F and not raw_value)
+        or (
+            value_type in {0x00, 0x02, 0x03, 0x04, 0x06, 0x10, 0x11}
+            and int(raw_value) == 0
+        )
+    )
+    if (
+        field.get_access_flags() & 0x0010
+        and field_key in assigned_static_fields
+        and is_default
+    ):
         return None
-    if value_type in {0x00, 0x02, 0x03, 0x04}:
-        return None if int(value) == 0 else f"0x{int(value) & 0xffffffff:x}"
-    if value_type == 0x06:
-        return None if int(value) == 0 else f"0x{int(value) & 0xffffffffffffffff:x}L"
-    if value_type == 0x10:
-        return None if float(value) == 0.0 else f"{float(value)!r}f"
-    if value_type == 0x11:
-        return None if float(value) == 0.0 else repr(float(value))
-    return None
+    return _format_annotation_scalar(encoded, string_resolver)
 
 
 def _sign_extend(value: int, byte_count: int) -> int:
@@ -140,7 +381,14 @@ def _sign_extend(value: int, byte_count: int) -> int:
     return value - (1 << (byte_count * 8)) if value & sign_bit else value
 
 
-def _format_annotation_scalar(value: object) -> str:
+def _encoded_index(value: object) -> int:
+    return int.from_bytes(value.raw_value, "little")
+
+
+def _format_annotation_scalar(
+    value: object,
+    string_resolver: Callable[[int], str],
+) -> str:
     value_type = value.get_value_type()
     raw_value = value.get_value()
     byte_count = value.get_value_arg() + 1
@@ -152,7 +400,7 @@ def _format_annotation_scalar(value: object) -> str:
         signed = _sign_extend(int(raw_value), byte_count)
         return f"-0x{-signed:x}s" if signed < 0 else f"0x{signed:x}s"
     if value_type == 0x03:
-        return f"0x{int(raw_value):x}"
+        return _quote_char(int(raw_value))
     if value_type == 0x04:
         signed = _sign_extend(int(raw_value), byte_count)
         return f"-0x{-signed:x}" if signed < 0 else f"0x{signed:x}"
@@ -161,12 +409,21 @@ def _format_annotation_scalar(value: object) -> str:
         return f"-0x{-signed:x}L" if signed < 0 else f"0x{signed:x}L"
     if value_type == 0x10:
         bits = int(raw_value) << ((4 - byte_count) * 8)
-        return f"{struct.unpack('<f', struct.pack('<I', bits))[0]!r}f"
+        return (
+            _java_decimal(
+                struct.unpack("<f", struct.pack("<I", bits))[0],
+                float32=True,
+            )
+            + "f"
+        )
     if value_type == 0x11:
         bits = int(raw_value) << ((8 - byte_count) * 8)
-        return repr(struct.unpack("<d", struct.pack("<Q", bits))[0])
+        return _java_decimal(
+            struct.unpack("<d", struct.pack("<Q", bits))[0],
+            float32=False,
+        )
     if value_type == 0x17:
-        return _quote_string(str(raw_value))
+        return _quote_string(string_resolver(_encoded_index(value)))
     if value_type == 0x18:
         return str(raw_value)
     if value_type in {0x19, 0x1B}:
@@ -187,57 +444,96 @@ def _render_annotation_value(
     name: str,
     value: object,
     indent: str,
+    string_resolver: Callable[[int], str],
 ) -> list[str]:
     value_type = value.get_value_type()
     raw_value = value.get_value()
 
     if value_type == 0x1C:
         values = raw_value.get_values()
+        if not values:
+            return [f"{indent}{name} = {{}}"]
         lines = [f"{indent}{name} = {{"]
         for index, item in enumerate(values):
             suffix = "," if index + 1 < len(values) else ""
             if item.get_value_type() == 0x1D:
-                nested = _render_subannotation(item.get_value(), indent + "    ")
-                nested[0] += suffix
+                nested = _render_subannotation(
+                    item.get_value(),
+                    indent + "    ",
+                    string_resolver,
+                )
+                nested[-1] += suffix
                 lines.extend(nested)
             else:
                 lines.append(
-                    f"{indent}    {_format_annotation_scalar(item)}{suffix}"
+                    f"{indent}    "
+                    f"{_format_annotation_scalar(item, string_resolver)}{suffix}"
                 )
         lines.append(f"{indent}}}")
         return lines
 
     if value_type == 0x1D:
         lines = [f"{indent}{name} = {_subannotation_header(raw_value)}"]
-        lines.extend(_render_annotation_elements(raw_value, indent + "    "))
+        lines.extend(
+            _render_annotation_elements(
+                raw_value,
+                indent + "    ",
+                string_resolver,
+            )
+        )
         lines.append(f"{indent}.end subannotation")
         return lines
 
-    return [f"{indent}{name} = {_format_annotation_scalar(value)}"]
+    return [
+        f"{indent}{name} = "
+        f"{_format_annotation_scalar(value, string_resolver)}"
+    ]
 
 
 def _subannotation_header(annotation: object) -> str:
     return f".subannotation {annotation.CM.get_type(annotation.get_type_idx())}"
 
 
-def _render_subannotation(annotation: object, indent: str) -> list[str]:
+def _render_subannotation(
+    annotation: object,
+    indent: str,
+    string_resolver: Callable[[int], str],
+) -> list[str]:
     lines = [f"{indent}{_subannotation_header(annotation)}"]
-    lines.extend(_render_annotation_elements(annotation, indent + "    "))
+    lines.extend(
+        _render_annotation_elements(
+            annotation,
+            indent + "    ",
+            string_resolver,
+        )
+    )
     lines.append(f"{indent}.end subannotation")
     return lines
 
 
-def _render_annotation_elements(annotation: object, indent: str) -> list[str]:
+def _render_annotation_elements(
+    annotation: object,
+    indent: str,
+    string_resolver: Callable[[int], str],
+) -> list[str]:
     lines: list[str] = []
     for element in annotation.get_elements():
-        name = annotation.CM.get_string(element.get_name_idx())
-        lines.extend(_render_annotation_value(name, element.get_value(), indent))
+        name = string_resolver(element.get_name_idx())
+        lines.extend(
+            _render_annotation_value(
+                name,
+                element.get_value(),
+                indent,
+                string_resolver,
+            )
+        )
     return lines
 
 
 def _render_annotation_set(
     annotation_set: object,
     annotation_items: Dict[int, object],
+    string_resolver: Callable[[int], str],
     indent: str = "",
 ) -> list[str]:
     if annotation_set is None:
@@ -255,7 +551,13 @@ def _render_annotation_set(
         visibility = visibility_names.get(item.get_visibility(), "build")
         annotation_type = annotation.CM.get_type(annotation.get_type_idx())
         lines.append(f"{indent}.annotation {visibility} {annotation_type}")
-        lines.extend(_render_annotation_elements(annotation, indent + "    "))
+        lines.extend(
+            _render_annotation_elements(
+                annotation,
+                indent + "    ",
+                string_resolver,
+            )
+        )
         lines.append(f"{indent}.end annotation")
     return lines
 
@@ -467,19 +769,23 @@ def _parameter_descriptors(descriptor: str) -> list[str]:
 
 def _parameter_lines(
     method: object,
-    code: object,
     names: list[Optional[str]],
+    annotations: list[list[str]],
 ) -> list[str]:
     descriptors = _parameter_descriptors(method.get_descriptor())
     register = 0 if method.get_access_flags() & 0x0008 else 1
     lines: list[str] = []
     for index, descriptor in enumerate(descriptors):
         name = names[index] if index < len(names) else None
-        if name is not None:
-            lines.append(
-                f'    .param p{register}, {_quote_string(name)}'
-                f"    # {descriptor}"
-            )
+        parameter_annotations = (
+            annotations[index] if index < len(annotations) else []
+        )
+        if name is not None or parameter_annotations:
+            name_text = f", {_quote_string(name)}" if name is not None else ""
+            lines.append(f"    .param p{register}{name_text}    # {descriptor}")
+            lines.extend(parameter_annotations)
+            if parameter_annotations:
+                lines.append("    .end param")
         register += 2 if descriptor in {"J", "D"} else 1
     return lines
 
@@ -487,7 +793,7 @@ def _parameter_lines(
 def _try_directives(code: object, type_resolver: object) -> TryDirectives:
     starts: Dict[int, list[str]] = {}
     ends: Dict[int, list[str]] = {}
-    handler_labels: Dict[int, str] = {}
+    handler_labels: Dict[int, list[str]] = {}
     handler_list = code.get_handlers()
     if handler_list is None:
         return TryDirectives(starts, ends, handler_labels)
@@ -496,8 +802,28 @@ def _try_directives(code: object, type_resolver: object) -> TryDirectives:
         handler.get_off() - handler_list.get_off(): handler
         for handler in handler_list.get_list()
     }
-    catch_index = 0
-    catchall_index = 0
+    catch_targets: set[int] = set()
+    catchall_targets: set[int] = set()
+    for try_item in code.get_tries():
+        handler = handlers_by_offset.get(try_item.get_handler_off())
+        if handler is None:
+            continue
+        catch_targets.update(pair.get_addr() * 2 for pair in handler.get_handlers())
+        if handler.get_size() <= 0:
+            catchall_targets.add(handler.get_catch_all_addr() * 2)
+
+    catch_labels = {
+        target: f":catch_{index:x}"
+        for index, target in enumerate(sorted(catch_targets))
+    }
+    catchall_labels = {
+        target: f":catchall_{index:x}"
+        for index, target in enumerate(sorted(catchall_targets))
+    }
+    for target, label in catch_labels.items():
+        handler_labels.setdefault(target, []).append(label)
+    for target, label in catchall_labels.items():
+        handler_labels.setdefault(target, []).append(label)
 
     for try_index, try_item in enumerate(code.get_tries()):
         start_offset = try_item.get_start_addr() * 2
@@ -516,11 +842,7 @@ def _try_directives(code: object, type_resolver: object) -> TryDirectives:
 
         for pair in handler.get_handlers():
             target_offset = pair.get_addr() * 2
-            target_label = handler_labels.get(target_offset)
-            if target_label is None:
-                target_label = f":catch_{catch_index:x}"
-                handler_labels[target_offset] = target_label
-                catch_index += 1
+            target_label = catch_labels[target_offset]
             exception_type = type_resolver(pair.get_type_idx())
             end_lines.append(
                 f".catch {exception_type} "
@@ -529,11 +851,7 @@ def _try_directives(code: object, type_resolver: object) -> TryDirectives:
 
         if handler.get_size() <= 0:
             target_offset = handler.get_catch_all_addr() * 2
-            target_label = handler_labels.get(target_offset)
-            if target_label is None:
-                target_label = f":catchall_{catchall_index:x}"
-                handler_labels[target_offset] = target_label
-                catchall_index += 1
+            target_label = catchall_labels[target_offset]
             end_lines.append(
                 f".catchall {{{start_label} .. {end_label}}} {target_label}"
             )
@@ -545,13 +863,23 @@ def _try_directives(code: object, type_resolver: object) -> TryDirectives:
 
 def _render_array_payload(instruction: object) -> list[str]:
     width = instruction.element_width
-    data = instruction.get_data()
+    data = instruction.get_data()[: instruction.size * width]
     lines = [f"    .array-data {width}"]
     for offset in range(0, len(data), width):
         raw = data[offset : offset + width]
         if len(raw) != width:
             break
-        lines.append(f"        {_array_literal(int.from_bytes(raw, 'little'), width)}")
+        value = int.from_bytes(raw, "little", signed=True)
+        rendered = f"        {_array_literal(value, width)}"
+        if width == 4:
+            comment = _literal_comment("const", value)
+            if comment is not None:
+                rendered += f"    # {comment}"
+        elif width == 8:
+            comment = _literal_comment("const-wide", value)
+            if comment is not None:
+                rendered += f"    # {comment}"
+        lines.append(rendered)
     lines.append("    .end array-data")
     return lines
 
@@ -569,11 +897,13 @@ def _render_switch_payload(
         lines = ["    .sparse-switch"]
         for key, target in zip(keys, targets):
             target_offset = owner_offset + target * 2
-            lines.append(f"        0x{key:x} -> {target_labels[target_offset]}")
+            lines.append(
+                f"        {_hex_literal(key)} -> {target_labels[target_offset]}"
+            )
         lines.append("    .end sparse-switch")
     else:
         first_key = keys[0] if keys else 0
-        lines = [f"    .packed-switch 0x{first_key:x}"]
+        lines = [f"    .packed-switch {_hex_literal(first_key)}"]
         for target in targets:
             target_offset = owner_offset + target * 2
             lines.append(f"        {target_labels[target_offset]}")
@@ -587,10 +917,10 @@ def _assign_branch_labels(
     labels: Dict[tuple[str, int], str] = {}
     labels_at: Dict[int, list[str]] = {}
     kind_order = [
-        "pswitch",
-        "sswitch",
         "cond",
         "goto",
+        "pswitch",
+        "sswitch",
         "array",
         "pswitch_data",
         "sswitch_data",
@@ -609,6 +939,7 @@ def _format_normal_instruction(
     instruction: object,
     parameter_start: int,
     target_label: Optional[str],
+    string_resolver: Callable[[int], str],
 ) -> str:
     name = instruction.get_name()
     output = instruction.get_output(offset)
@@ -621,11 +952,7 @@ def _format_normal_instruction(
             if int(operand[0]) == 0
         ]
         if name.endswith("/range") and registers:
-            register_text = (
-                registers[0]
-                if len(registers) == 1
-                else f"{registers[0]} .. {registers[-1]}"
-            )
+            register_text = f"{registers[0]} .. {registers[-1]}"
         else:
             register_text = ", ".join(registers)
         reference = _reference_operand(instruction)
@@ -634,11 +961,15 @@ def _format_normal_instruction(
             output += f", {_format_reference(reference)}"
     elif name in {"const-string", "const-string/jumbo"}:
         registers = [operand for operand in operands if int(operand[0]) == 0]
-        reference = _reference_operand(instruction)
-        if registers and reference is not None:
+        string_indexes = [
+            int(operand[1])
+            for operand in operands
+            if len(operand) >= 3
+        ]
+        if registers and string_indexes:
             output = (
                 f"{_register_name(int(registers[0][1]), parameter_start)}, "
-                f"{_quote_string(reference)}"
+                f"{_quote_string(string_resolver(string_indexes[-1]))}"
             )
     else:
         output = _replace_registers(output, parameter_start)
@@ -646,8 +977,21 @@ def _format_normal_instruction(
         literals = [operand for operand in operands if int(operand[0]) == 1]
         if literals:
             literal = int(literals[-1][1])
-            formatted = f"-0x{-literal:x}" if literal < 0 else f"0x{literal:x}"
+            suffix = "L" if name in {"const-wide", "const-wide/high16"} else ""
+            formatted = _hex_literal(literal, suffix)
             output = re.sub(r"(?<=,\s)[-+]?(?:0x[0-9a-fA-F]+|\d+)(?=\s*$)", formatted, output)
+            if name in {
+                "const/16",
+                "const/high16",
+                "const",
+                "const-wide/16",
+                "const-wide/32",
+                "const-wide/high16",
+                "const-wide",
+            }:
+                comment = _literal_comment(name, literal)
+                if comment is not None:
+                    output += f"    # {comment}"
 
     if target_label:
         output = OFFSET_RE.sub(target_label, output)
@@ -661,6 +1005,20 @@ def disassemble_dex(data: bytes) -> DexDisassembly:
     from androguard.core.dex import DEX, Operand, TypeMapItem
 
     dex = DEX(data)
+    string_ids = dex.map_list.get_item_type(TypeMapItem.STRING_ID_ITEM) or []
+    string_cache: Dict[int, str] = {}
+
+    def resolve_string(index: int) -> str:
+        if index not in string_cache:
+            try:
+                item = dex.CM.get_string_by_offset(
+                    string_ids[index].get_string_data_off()
+                )
+                string_cache[index] = _decode_mutf8_code_units(item.data)
+            except (IndexError, KeyError, UnicodeDecodeError):
+                string_cache[index] = dex.CM.get_string(index)
+        return string_cache[index]
+
     annotation_sets = {
         item.get_off(): item
         for item in (
@@ -671,15 +1029,38 @@ def disassemble_dex(data: bytes) -> DexDisassembly:
         item.get_off(): item
         for item in (dex.map_list.get_item_type(TypeMapItem.ANNOTATION_ITEM) or [])
     }
+    annotation_set_ref_lists = {
+        item.get_off(): item
+        for item in (
+            dex.map_list.get_item_type(TypeMapItem.ANNOTATION_SET_REF_LIST) or []
+        )
+    }
     result: Dict[str, MethodBody] = {}
     field_initializers: Dict[str, str] = {}
     class_annotations: Dict[str, list[str]] = {}
     field_annotations: Dict[str, list[str]] = {}
     method_annotations: Dict[str, list[str]] = {}
+    parameter_annotation_sets: Dict[str, list[list[str]]] = {}
+    parameter_annotations: Dict[str, list[str]] = {}
 
     for class_def in dex.get_classes():
+        assigned_static_fields: set[str] = set()
+        for method in class_def.get_methods():
+            if method.get_name() != "<clinit>":
+                continue
+            for instruction in method.get_instructions():
+                if not instruction.get_name().startswith("sput"):
+                    continue
+                reference = _reference_operand(instruction)
+                if reference is not None:
+                    assigned_static_fields.add(_format_reference(reference))
+
         for field in class_def.get_fields():
-            initializer = _field_initializer(field)
+            initializer = _field_initializer(
+                field,
+                assigned_static_fields,
+                resolve_string,
+            )
             if initializer is not None:
                 field_initializers[
                     f"{field.get_class_name()}->{field.get_name()}:{field.get_descriptor()}"
@@ -691,6 +1072,7 @@ def disassemble_dex(data: bytes) -> DexDisassembly:
         rendered = _render_annotation_set(
             annotation_sets.get(directory.get_class_annotations_off()),
             annotation_items,
+            resolve_string,
         )
         if rendered:
             class_annotations[class_def.get_name()] = rendered
@@ -702,6 +1084,7 @@ def disassemble_dex(data: bytes) -> DexDisassembly:
             rendered = _render_annotation_set(
                 annotation_sets.get(field_annotation.get_annotations_off()),
                 annotation_items,
+                resolve_string,
                 indent="    ",
             )
             if rendered:
@@ -716,6 +1099,7 @@ def disassemble_dex(data: bytes) -> DexDisassembly:
             rendered = _render_annotation_set(
                 annotation_sets.get(method_annotation.get_annotations_off()),
                 annotation_items,
+                resolve_string,
                 indent="    ",
             )
             if rendered:
@@ -723,9 +1107,46 @@ def disassemble_dex(data: bytes) -> DexDisassembly:
                     _method_key(class_name, method_name, "".join(proto))
                 ] = rendered
 
+        for parameter_annotation in directory.get_parameter_annotations():
+            class_name, method_name, proto = dex.get_cm_method(
+                parameter_annotation.get_method_idx()
+            )
+            annotation_ref_list = annotation_set_ref_lists.get(
+                parameter_annotation.get_annotations_off()
+            )
+            if annotation_ref_list is None:
+                continue
+            rendered_parameters: list[list[str]] = []
+            for annotation_ref in annotation_ref_list.get_list():
+                rendered_parameters.append(
+                    _render_annotation_set(
+                        annotation_sets.get(
+                            annotation_ref.get_annotations_off()
+                        ),
+                        annotation_items,
+                        resolve_string,
+                        indent="        ",
+                    )
+                )
+            parameter_annotation_sets[
+                _method_key(class_name, method_name, "".join(proto))
+            ] = rendered_parameters
+
     for method in dex.get_encoded_methods():
+        method_key = _method_key(
+            method.get_class_name(),
+            method.get_name(),
+            method.get_descriptor(),
+        )
         code = method.get_code()
         if code is None:
+            lines = _parameter_lines(
+                method,
+                [],
+                parameter_annotation_sets.get(method_key, []),
+            )
+            if lines:
+                parameter_annotations[method_key] = lines
             continue
 
         instructions = list(method.get_instructions_idx())
@@ -757,17 +1178,17 @@ def disassemble_dex(data: bytes) -> DexDisassembly:
         branch_labels, labels_at = _assign_branch_labels(targets_by_kind)
 
         try_directives = _try_directives(code, method.CM.get_type)
-        for target, label in try_directives.handler_labels.items():
-            labels_at.setdefault(target, []).append(label)
+        for target, handler_labels in try_directives.handler_labels.items():
+            labels_at[target] = handler_labels + labels_at.get(target, [])
         parameter_start = code.get_registers_size() - code.get_ins_size()
         parameter_names = _debug_parameter_names(
-            data, code.get_debug_info_off(), method.CM.get_string
+            data, code.get_debug_info_off(), resolve_string
         )
         debug_directives = _debug_directives(
             data,
             code.get_debug_info_off(),
             parameter_start,
-            method.CM.get_string,
+            resolve_string,
             method.CM.get_type,
             _initial_parameter_locals(method, code, parameter_names),
         )
@@ -826,7 +1247,11 @@ def disassemble_dex(data: bytes) -> DexDisassembly:
                     break
             lines.append(
                 _format_normal_instruction(
-                    offset, instruction, parameter_start, target_label
+                    offset,
+                    instruction,
+                    parameter_start,
+                    target_label,
+                    resolve_string,
                 )
             )
             lines.append("")
@@ -847,15 +1272,13 @@ def disassemble_dex(data: bytes) -> DexDisassembly:
         while lines and not lines[-1]:
             lines.pop()
 
-        result[
-            _method_key(
-                method.get_class_name(),
-                method.get_name(),
-                method.get_descriptor(),
-            )
-        ] = MethodBody(
+        result[method_key] = MethodBody(
             locals_count=code.get_registers_size() - code.get_ins_size(),
-            parameter_lines=_parameter_lines(method, code, parameter_names),
+            parameter_lines=_parameter_lines(
+                method,
+                parameter_names,
+                parameter_annotation_sets.get(method_key, []),
+            ),
             lines=lines,
         )
 
@@ -865,4 +1288,5 @@ def disassemble_dex(data: bytes) -> DexDisassembly:
         class_annotations=class_annotations,
         field_annotations=field_annotations,
         method_annotations=method_annotations,
+        parameter_annotations=parameter_annotations,
     )

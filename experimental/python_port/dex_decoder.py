@@ -542,7 +542,13 @@ def _unique_smali_path(
 
 
 def _quote_smali_string(value: str) -> str:
-    escaped = value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("\r", "\\r")
+    escaped = (
+        value.replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("'", "\\'")
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+    )
     return f'"{escaped}"'
 
 
@@ -569,6 +575,7 @@ def _smali_for_class(
     class_annotations: Optional[Dict[str, List[str]]] = None,
     field_annotations: Optional[Dict[str, List[str]]] = None,
     method_annotations: Optional[Dict[str, List[str]]] = None,
+    parameter_annotations: Optional[Dict[str, List[str]]] = None,
 ) -> str:
     class_data = _parse_class_data(data, class_def.class_data_off)
     lines: List[str] = []
@@ -597,7 +604,8 @@ def _smali_for_class(
         lines.append("# annotations")
         lines.extend(annotations)
         lines.append("")
-        lines.append("")
+        if not (class_data.static_fields or class_data.instance_fields):
+            lines.append("")
 
     def append_fields(section: str, encoded_fields: List[EncodedField]) -> None:
         if not encoded_fields:
@@ -628,6 +636,8 @@ def _smali_for_class(
     append_fields("instance", class_data.instance_fields)
     if class_data.static_fields or class_data.instance_fields:
         lines.append("")
+    elif not annotations:
+        lines.append("")
 
     def append_methods(section: str, encoded_methods: List[EncodedMethod]) -> None:
         if not encoded_methods:
@@ -657,6 +667,13 @@ def _smali_for_class(
                     lines.extend(method_body.lines)
             elif code_header is not None:
                 lines.append(f"    .registers {code_header.registers_size}")
+                parameters = (
+                    parameter_annotations.get(_method_key(method))
+                    if parameter_annotations
+                    else None
+                )
+                if parameters:
+                    lines.extend(parameters)
                 annotations = (
                     method_annotations.get(_method_key(method))
                     if method_annotations
@@ -669,6 +686,13 @@ def _smali_for_class(
                 lines.append(f"    # insns_size = {code_header.insns_size}")
                 lines.append("    # instruction disassembly is not available")
             else:
+                parameters = (
+                    parameter_annotations.get(_method_key(method))
+                    if parameter_annotations
+                    else None
+                )
+                if parameters:
+                    lines.extend(parameters)
                 annotations = (
                     method_annotations.get(_method_key(method))
                     if method_annotations
@@ -699,6 +723,7 @@ def generate_smali_files(data: bytes, disassemble: bool = False) -> Dict[str, st
     class_annotations: Optional[Dict[str, List[str]]] = None
     field_annotations: Optional[Dict[str, List[str]]] = None
     method_annotations: Optional[Dict[str, List[str]]] = None
+    parameter_annotations: Optional[Dict[str, List[str]]] = None
     if disassemble:
         from androguard_disassembler import disassemble_dex
 
@@ -708,6 +733,7 @@ def generate_smali_files(data: bytes, disassemble: bool = False) -> Dict[str, st
         class_annotations = disassembly.class_annotations
         field_annotations = disassembly.field_annotations
         method_annotations = disassembly.method_annotations
+        parameter_annotations = disassembly.parameter_annotations
 
     files: Dict[str, str] = {}
     casefold_paths: set[str] = set()
@@ -726,6 +752,7 @@ def generate_smali_files(data: bytes, disassemble: bool = False) -> Dict[str, st
             class_annotations,
             field_annotations,
             method_annotations,
+            parameter_annotations,
         )
         casefold_paths.add(path.casefold())
     return files
