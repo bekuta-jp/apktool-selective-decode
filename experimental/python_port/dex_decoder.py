@@ -522,12 +522,21 @@ def _descriptor_to_smali_path(descriptor: str) -> str:
     return f"invalid/{safe}.smali"
 
 
-def _unique_smali_path(path: str, existing: Dict[str, str]) -> str:
-    if path not in existing:
+def _unique_smali_path(
+    path: str,
+    existing: Dict[str, str],
+    casefold_paths: Optional[set[str]] = None,
+) -> str:
+    used = (
+        casefold_paths
+        if casefold_paths is not None
+        else {existing_path.casefold() for existing_path in existing}
+    )
+    if path.casefold() not in used:
         return path
     stem = path[:-6] if path.endswith(".smali") else path
     duplicate_index = 1
-    while f"{stem}.{duplicate_index}.smali" in existing:
+    while f"{stem}.{duplicate_index}.smali".casefold() in used:
         duplicate_index += 1
     return f"{stem}.{duplicate_index}.smali"
 
@@ -557,6 +566,9 @@ def _smali_for_class(
     class_def: ClassDef,
     method_bodies: Optional[Dict[str, object]] = None,
     field_initializers: Optional[Dict[str, str]] = None,
+    class_annotations: Optional[Dict[str, List[str]]] = None,
+    field_annotations: Optional[Dict[str, List[str]]] = None,
+    method_annotations: Optional[Dict[str, List[str]]] = None,
 ) -> str:
     class_data = _parse_class_data(data, class_def.class_data_off)
     lines: List[str] = []
@@ -575,6 +587,17 @@ def _smali_for_class(
     if class_def.interfaces:
         lines.append("")
 
+    annotations = (
+        class_annotations.get(class_def.descriptor)
+        if class_annotations
+        else None
+    )
+    if annotations:
+        lines.append("")
+        lines.append("# annotations")
+        lines.extend(annotations)
+        lines.append("")
+
     def append_fields(section: str, encoded_fields: List[EncodedField]) -> None:
         if not encoded_fields:
             return
@@ -590,11 +613,17 @@ def _smali_for_class(
             if initializer is not None:
                 rest += f" = {initializer}"
             lines.append(_format_directive(".field", access, rest))
+            annotations = (
+                field_annotations.get(_field_key(field))
+                if field_annotations
+                else None
+            )
+            if annotations:
+                lines.extend(annotations)
+                lines.append(".end field")
             lines.append("")
 
     append_fields("static", class_data.static_fields)
-    if class_data.static_fields and class_data.instance_fields:
-        lines.append("")
     append_fields("instance", class_data.instance_fields)
     if class_data.static_fields or class_data.instance_fields:
         lines.append("")
@@ -614,18 +643,41 @@ def _smali_for_class(
             code_header = _parse_code_item_header(data, encoded.code_off)
             if method_body is not None:
                 lines.append(f"    .locals {method_body.locals_count}")
+                lines.extend(method_body.parameter_lines)
+                annotations = (
+                    method_annotations.get(_method_key(method))
+                    if method_annotations
+                    else None
+                )
+                if annotations:
+                    lines.extend(annotations)
                 if method_body.lines:
                     lines.append("")
                     lines.extend(method_body.lines)
             elif code_header is not None:
                 lines.append(f"    .registers {code_header.registers_size}")
+                annotations = (
+                    method_annotations.get(_method_key(method))
+                    if method_annotations
+                    else None
+                )
+                if annotations:
+                    lines.extend(annotations)
                 lines.append("")
                 lines.append(f"    # code_off = 0x{encoded.code_off:x}")
                 lines.append(f"    # insns_size = {code_header.insns_size}")
                 lines.append("    # instruction disassembly is not available")
-            elif not (encoded.access_flags & (0x0100 | 0x0400)):
-                lines.append("")
-                lines.append("    # no code_item available")
+            else:
+                annotations = (
+                    method_annotations.get(_method_key(method))
+                    if method_annotations
+                    else None
+                )
+                if annotations:
+                    lines.extend(annotations)
+                if not (encoded.access_flags & (0x0100 | 0x0400)):
+                    lines.append("")
+                    lines.append("    # no code_item available")
 
             lines.append(".end method")
             lines.append("")
@@ -643,19 +695,36 @@ def generate_smali_files(data: bytes, disassemble: bool = False) -> Dict[str, st
     parsed = _parse_dex(data)
     method_bodies: Optional[Dict[str, object]] = None
     field_initializers: Optional[Dict[str, str]] = None
+    class_annotations: Optional[Dict[str, List[str]]] = None
+    field_annotations: Optional[Dict[str, List[str]]] = None
+    method_annotations: Optional[Dict[str, List[str]]] = None
     if disassemble:
         from androguard_disassembler import disassemble_dex
 
         disassembly = disassemble_dex(data)
         method_bodies = disassembly.methods
         field_initializers = disassembly.field_initializers
+        class_annotations = disassembly.class_annotations
+        field_annotations = disassembly.field_annotations
+        method_annotations = disassembly.method_annotations
 
     files: Dict[str, str] = {}
+    casefold_paths: set[str] = set()
     for class_def in parsed.class_defs:
         path = _unique_smali_path(
-            _descriptor_to_smali_path(class_def.descriptor), files
+            _descriptor_to_smali_path(class_def.descriptor),
+            files,
+            casefold_paths,
         )
         files[path] = _smali_for_class(
-            parsed, data, class_def, method_bodies, field_initializers
+            parsed,
+            data,
+            class_def,
+            method_bodies,
+            field_initializers,
+            class_annotations,
+            field_annotations,
+            method_annotations,
         )
+        casefold_paths.add(path.casefold())
     return files

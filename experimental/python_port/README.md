@@ -20,7 +20,8 @@
 注意:
 - これは Apktool 本体の完全互換実装ではありません。
 - ManifestはAPK自身の`resources.arsc`をメモリ上で読み、リソース名を解決します。`res/`への保存は行いません。
-- `disassemble`は命令・行番号・基本的なpayloadを出力しますが、注釈、例外ハンドラ、ローカル変数情報は未完成です。
+- `disassemble`は命令、行番号、基本的なpayload、注釈、例外ハンドラ、引数名を出力します。
+- `.local` / `.end local`などのローカル変数デバッグ情報は未完成です。
 - Manifest デコードは特殊ケースでは `raw_fallback` に落ちます。
 
 ### 使い方
@@ -71,7 +72,8 @@ What `decode` means:
 Notes:
 - This is not full Apktool feature parity.
 - Manifest decoding resolves resource names from the APK's `resources.arsc` in memory without writing `res/`.
-- `disassemble` emits instructions, line numbers, and basic payloads. Annotations, exception handlers, and local-variable debug data are not complete yet.
+- `disassemble` emits instructions, line numbers, basic payloads, annotations, exception handlers, and parameter names.
+- Local-variable debug directives such as `.local` and `.end local` are not complete yet.
 - Manifest decoding is experimental and may fall back to raw output.
 
 ### Usage
