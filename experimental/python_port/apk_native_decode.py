@@ -52,6 +52,12 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         default="disassemble",
         help="Write instruction-level or structural .smali files when dex is decoded.",
     )
+    p.add_argument(
+        "--dex-json-mode",
+        choices=["write", "skip"],
+        default="skip",
+        help="Write decoded DEX metadata JSON. Skipping avoids a duplicate DEX parse.",
+    )
     p.add_argument("--preview-limit", type=int, default=32, help="Preview entry count in dex json")
     p.add_argument(
         "--include-signatures",
@@ -80,6 +86,7 @@ def main(argv: list[str]) -> int:
         "out": str(out_dir),
         "manifest_mode": args.manifest_mode,
         "dex_mode": args.dex_mode,
+        "dex_json_mode": args.dex_json_mode,
         "manifest": "skip",
         "manifest_error": None,
         "resource_resolution": "not_used",
@@ -164,14 +171,18 @@ def main(argv: list[str]) -> int:
                 started = time.perf_counter()
                 smali_before = summary["smali_files"]
                 data = zipf.read(dex_name)
-                out_path = out_dir / "dex" / "decoded" / f"{dex_name}.json"
                 try:
-                    decoded = decode_dex(
-                        data,
-                        preview_limit=max(1, args.preview_limit),
-                        include_method_signatures=args.include_signatures,
-                    )
-                    _write_json(out_path, decoded)
+                    decoded = None
+                    if args.dex_json_mode == "write" or args.include_signatures:
+                        decoded = decode_dex(
+                            data,
+                            preview_limit=max(1, args.preview_limit),
+                            include_method_signatures=args.include_signatures,
+                        )
+                        out_path = (
+                            out_dir / "dex" / "decoded" / f"{dex_name}.json"
+                        )
+                        _write_json(out_path, decoded)
 
                     if args.smali_mode != "skip":
                         smali_root_name = "smali" if dex_name == "classes.dex" else dex_name[:-4].replace("classes", "smali_classes")
@@ -185,8 +196,16 @@ def main(argv: list[str]) -> int:
                     dex_result = {
                         "dex": dex_name,
                         "status": "decoded",
-                        "classes": decoded["counts"]["classes"],
-                        "defined_methods": decoded["counts"]["defined_methods"],
+                        "classes": (
+                            decoded["counts"]["classes"]
+                            if decoded is not None
+                            else summary["smali_files"] - smali_before
+                        ),
+                        "defined_methods": (
+                            decoded["counts"]["defined_methods"]
+                            if decoded is not None
+                            else None
+                        ),
                         "smali_files": summary["smali_files"] - smali_before,
                         "elapsed_sec": round(time.perf_counter() - started, 3),
                     }

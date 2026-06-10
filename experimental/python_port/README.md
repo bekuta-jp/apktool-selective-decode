@@ -46,11 +46,12 @@ python3 experimental/python_port/apk_native_decode.py \
 出力:
 - `manifest/AndroidManifest.xml` (または `AndroidManifest.raw.xml`)
 - `smali/**/*.smali`, `smali_classes2/**/*.smali`, ...
-- `dex/decoded/*.json` または `dex/raw/*.dex`
+- `dex/decoded/*.json`（`--dex-json-mode write`指定時）または`dex/raw/*.dex`
 - `summary.json`
 
 `--include-signatures` を付けると、DEX JSONにクラス/メソッド署名一覧も含めます（大きな出力になります）。
 `--smali-mode skeleton` は命令を省く代わりに、速度と出力サイズを優先します。
+DEXメタデータJSONは既定では省略され、smali用とは別のDEX解析と追加I/Oを避けます。
 
 ## English
 
@@ -98,8 +99,9 @@ python3 experimental/python_port/apk_native_decode.py \
 Outputs:
 - `manifest/AndroidManifest.xml` (or `AndroidManifest.raw.xml`)
 - `smali/**/*.smali`, `smali_classes2/**/*.smali`, ...
-- `dex/decoded/*.json` or `dex/raw/*.dex`
+- `dex/decoded/*.json` with `--dex-json-mode write`, or `dex/raw/*.dex`
 - `summary.json`
 
 With `--include-signatures`, full class/method signature lists are added to DEX JSON output (large files).
 Use `--smali-mode skeleton` when speed and output size matter more than instruction text.
+DEX metadata JSON is skipped by default to avoid a separate parse and extra I/O.
