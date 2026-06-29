@@ -48,7 +48,8 @@ public class ResStringPool {
     private String[] mDecodedStrings;
     private Map<String, Integer> mStringToIndex;
 
-    private ResStringPool(int[] stringOffsets, byte[] strings, int[] styleOffsets, int[] styles, boolean isUtf8) {
+    @VisibleForTesting
+    ResStringPool(int[] stringOffsets, byte[] strings, int[] styleOffsets, int[] styles, boolean isUtf8) {
         mStringOffsets = stringOffsets;
         mStrings = strings;
         mStyleOffsets = styleOffsets;
@@ -259,8 +260,17 @@ public class ResStringPool {
             return null;
         }
 
+        int styleOffset = mStyleOffsets[index];
+        if (styleOffset == -1) {
+            return null;
+        }
+        if (styleOffset < 0 || styleOffset % 4 != 0) {
+            Log.w(TAG, "Ignoring malformed style offset %s for string index %s.", styleOffset, index);
+            return null;
+        }
+
         // Make sure not to count a partial triplet.
-        int offset = mStyleOffsets[index] / 4;
+        int offset = styleOffset / 4;
         int count = 0;
         for (int i = offset; i + 2 < mStyles.length; i += 3) {
             if (mStyles[i] < 0) {

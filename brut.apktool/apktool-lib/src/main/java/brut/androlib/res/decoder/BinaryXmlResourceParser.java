@@ -33,6 +33,7 @@ import java.io.BufferedInputStream;
 import java.io.InputStream;
 import java.io.IOException;
 import java.io.Reader;
+import java.util.Arrays;
 
 public class BinaryXmlResourceParser implements XmlPullParser {
     private static final String TAG = BinaryXmlResourceParser.class.getName();
@@ -732,12 +733,19 @@ public class BinaryXmlResourceParser implements XmlPullParser {
                     mIn.jumpTo(startPosition + attributeStart);
 
                     mAttributes = new Attribute[attributeCount];
+                    int validAttributeCount = 0;
                     for (int i = 0; i < attributeCount; i++) {
-                        Attribute attr = Attribute.read(mIn);
+                        long attributeEnd = mIn.position() + attributeSize;
+                        Attribute attr = Attribute.read(mIn, attributeSize);
 
-                        if (attributeSize > Attribute.SIZE) {
-                            int skipped = mIn.skipBytes(attributeSize - Attribute.SIZE);
+                        if (mIn.position() < attributeEnd) {
+                            int skipped = mIn.skipBytes((int) (attributeEnd - mIn.position()));
                             Log.d(TAG, "Skipped unknown %s bytes in attribute.", skipped);
+                        }
+
+                        if (attr == null) {
+                            Log.w(TAG, "Skipping malformed binary XML attribute at line %s.", mLineNumber);
+                            continue;
                         }
 
                         // Check if the app preserved raw attribute values.
@@ -746,7 +754,10 @@ public class BinaryXmlResourceParser implements XmlPullParser {
                             mHasRawValues = true;
                         }
 
-                        mAttributes[i] = attr;
+                        mAttributes[validAttributeCount++] = attr;
+                    }
+                    if (validAttributeCount < mAttributes.length) {
+                        mAttributes = Arrays.copyOf(mAttributes, validAttributeCount);
                     }
 
                     mNamespaces.incrementDepth();
@@ -994,14 +1005,20 @@ public class BinaryXmlResourceParser implements XmlPullParser {
             this.valueData = valueData;
         }
 
-        public static Attribute read(BinaryDataInputStream in) throws IOException {
+        public static Attribute read(BinaryDataInputStream in, int attributeSize) throws IOException {
             // ResXMLTree_attribute
+            if (attributeSize < 12) {
+                return null;
+            }
             int ns = in.readInt();
             int name = in.readInt();
             int rawValue = in.readInt();
+            if (attributeSize < 14) {
+                return null;
+            }
             // Res_value
             int valueSize = in.readUnsignedShort();
-            if (valueSize < 8) {
+            if (valueSize < 8 || attributeSize < SIZE) {
                 return null;
             }
             in.skipByte(); // res0

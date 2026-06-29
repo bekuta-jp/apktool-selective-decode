@@ -27,6 +27,7 @@ apktool d app.apk --dex-mode raw --manifest-mode raw --res-mode skip
 - このフォークは公式 Apktool ではありません。
 - Apktool は違法行為を目的としたツールではありません。利用する国・地域の法令に従ってください。
 - ライセンスは Apache 2.0 です。再配布時は `LICENSE.md` を必ず同梱してください。
+- 通常デコード互換性、壊れた入力の扱い、検証結果は [`VALIDATION.md`](VALIDATION.md) を参照してください。
 
 公開手順（新規リポジトリ作成、remote 設定、初回 push）は `PUBLISHING.md` を参照してください。
 
@@ -57,6 +58,7 @@ apktool d app.apk --dex-mode raw --manifest-mode raw --res-mode skip
 - This is not an official Apktool distribution.
 - Apktool is not intended for piracy or illegal use. Follow your local laws and policies.
 - License: Apache 2.0. Keep `LICENSE.md` when redistributing.
+- See [`VALIDATION.md`](VALIDATION.md) for standard-decode compatibility, malformed-input policy, and validation results.
 
 For publishing steps (creating a new remote repo, setting remotes, first push), see `PUBLISHING.md`.
 
