@@ -23,6 +23,9 @@
   その属性だけをスキップし、残りの `AndroidManifest.xml` をデコードします。
 - 非標準の最上位 binary XML chunk type `0x0009`:
   外側headerと直後のstring pool chunkが妥当な場合だけAXMLとして扱います。
+- null (`0x0000`) の最上位 binary XML chunk type:
+  外側headerと直後のstring pool chunkが妥当な場合だけAXMLとして扱います。
+  XML内部のnull chunkは従来どおりスキップします。
 
 いずれも、存在しない値を補完したり、文脈から値を推測したりしません。
 
@@ -82,6 +85,19 @@ baseline の `main` と修正版を同じツールチェーンでビルドし、
 `.1` suffix付与先が実行ごとに反転しました。同じbaseline jarの再実行でも再現し、
 対応するファイル内容のSHA-256は一致しているため、今回の変更による差分ではありません。
 
+### Null XML headerの検証
+
+次の APK は、最上位chunk typeがnull (`0x0000`) で、そのchunkがmanifest全体を
+包含していました。修正前はnull chunk全体をスキップしてEOFに達し、
+`Input file is empty` として失敗しました。修正後は直後のstring poolを構造検証して
+AXMLとして扱い、通常デコードと選択的デコードの両方が完了しました。
+
+- `7fa1d8719f46ccb1c918e847ba31acf512b153115575035ca3dc5cefa62ce84a.apk`
+
+全16 APKの通常デコードを修正前後で比較した結果、14件は出力ツリーが完全一致し、
+上記1件は修正前失敗・修正後成功でした。残る1件の差分は、大小文字が衝突する
+smaliクラスの `.1` suffix付与先だけで、対応するファイル内容のSHA-256は一致しました。
+
 ## English
 
 Selective decode changes only explicitly selected component handling. Standard decode
@@ -102,3 +118,13 @@ selective manifest/smali outputs matched for all 13 APKs.
 
 Two additional APKs with top-level XML chunk type `0x0009` failed before parser
 initialization on the baseline and decoded successfully with the candidate.
+
+A top-level null (`0x0000`) XML chunk type is accepted under the same structural
+checks. Null chunks inside XML continue to be skipped.
+
+The affected APK
+`7fa1d8719f46ccb1c918e847ba31acf512b153115575035ca3dc5cefa62ce84a.apk`
+decoded successfully in both standard and selective modes. Across all 16 APKs,
+14 output trees were exact matches, this APK changed from baseline failure to
+candidate success, and one APK only varied in case-colliding smali suffix assignment
+with matching file SHA-256 values.

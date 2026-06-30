@@ -115,10 +115,10 @@ public class BinaryXmlResourceParser implements XmlPullParser {
         mIn = new BinaryDataInputStream(new BufferedInputStream(inputStream));
         mParser = new ResChunkPullParser(mIn);
         try {
-            if (!nextChunk()) {
+            if (!nextRootChunk()) {
                 throw new IOException("Input file is empty.");
             }
-            if (!isXmlChunk()) {
+            if (!isXmlChunk(true)) {
                 throw new IOException("Unexpected chunk: " + mParser.chunkName() + " (expected: RES_XML_TYPE)");
             }
         } catch (IOException ex) {
@@ -130,11 +130,12 @@ public class BinaryXmlResourceParser implements XmlPullParser {
         mParser = new ResChunkPullParser(mIn, mParser.dataSize());
     }
 
-    private boolean isXmlChunk() throws IOException {
+    private boolean isXmlChunk(boolean logWarning) throws IOException {
         if (mParser.chunkType() == ResChunkHeader.RES_XML_TYPE) {
             return true;
         }
-        if (mParser.chunkType() != RES_XML_ALTERNATE_TYPE
+        if ((mParser.chunkType() != RES_XML_ALTERNATE_TYPE
+                && mParser.chunkType() != ResChunkHeader.RES_NULL_TYPE)
                 || mParser.headerSize() != ResChunkHeader.SIZE
                 || mParser.dataSize() < ResChunkHeader.SIZE) {
             return false;
@@ -152,11 +153,24 @@ public class BinaryXmlResourceParser implements XmlPullParser {
             && firstChild.headerSize >= RES_STRING_POOL_HEADER_SIZE
             && firstChild.size >= firstChild.headerSize
             && firstChild.size <= mParser.dataSize();
-        if (valid) {
+        if (valid && logWarning) {
             Log.w(TAG, "Treating non-standard XML chunk type 0x%04x as RES_XML_TYPE.",
                 mParser.chunkType());
         }
         return valid;
+    }
+
+    private boolean nextRootChunk() throws IOException {
+        while (mParser.next()) {
+            if (mParser.chunkType() != ResChunkHeader.RES_NULL_TYPE || isXmlChunk(false)) {
+                return true;
+            }
+
+            Log.d(TAG, "Skipping unknown chunk (%s) of %s bytes at 0x%08x.",
+                mParser.chunkName(), mParser.chunkSize(), mParser.chunkStart());
+            mParser.skipChunk();
+        }
+        return false;
     }
 
     @Override

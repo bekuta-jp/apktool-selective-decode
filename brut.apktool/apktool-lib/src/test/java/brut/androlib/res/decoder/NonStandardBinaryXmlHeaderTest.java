@@ -25,6 +25,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class NonStandardBinaryXmlHeaderTest {
+    private static final byte RES_XML_NULL_TYPE = 0x00;
     private static final byte RES_XML_ALTERNATE_TYPE = 0x09;
 
     @Test
@@ -41,10 +42,33 @@ public class NonStandardBinaryXmlHeaderTest {
         assertEquals(originalAttributeCount, decodedAttributeCount);
     }
 
+    @Test
+    public void nullHeaderWithStringPoolIsAccepted() throws Exception {
+        byte[] manifest = MalformedBinaryXmlAttributeTest.readManifestFixture();
+        int originalAttributeCount =
+            MalformedBinaryXmlAttributeTest.readFirstStartTagAttributeCount(manifest);
+
+        manifest[0] = RES_XML_NULL_TYPE;
+
+        int decodedAttributeCount =
+            MalformedBinaryXmlAttributeTest.readFirstStartTagAttributeCount(manifest);
+        assertTrue(originalAttributeCount > 0);
+        assertEquals(originalAttributeCount, decodedAttributeCount);
+    }
+
     @Test(expected = XmlPullParserException.class)
     public void nonStandardHeaderWithoutStringPoolIsRejected() throws Exception {
         byte[] manifest = MalformedBinaryXmlAttributeTest.readManifestFixture();
         manifest[0] = RES_XML_ALTERNATE_TYPE;
+        manifest[ResChunkHeader.SIZE] = (byte) ResChunkHeader.RES_TABLE_TYPE;
+
+        MalformedBinaryXmlAttributeTest.readFirstStartTagAttributeCount(manifest);
+    }
+
+    @Test(expected = XmlPullParserException.class)
+    public void nullHeaderWithoutStringPoolIsRejected() throws Exception {
+        byte[] manifest = MalformedBinaryXmlAttributeTest.readManifestFixture();
+        manifest[0] = RES_XML_NULL_TYPE;
         manifest[ResChunkHeader.SIZE] = (byte) ResChunkHeader.RES_TABLE_TYPE;
 
         MalformedBinaryXmlAttributeTest.readFirstStartTagAttributeCount(manifest);
