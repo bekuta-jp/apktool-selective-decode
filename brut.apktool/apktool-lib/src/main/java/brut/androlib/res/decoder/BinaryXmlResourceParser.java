@@ -38,6 +38,8 @@ import java.util.Arrays;
 public class BinaryXmlResourceParser implements XmlPullParser {
     private static final String TAG = BinaryXmlResourceParser.class.getName();
     private static final String NOT_SUPPORTED = "Method is not supported.";
+    private static final int RES_XML_ALTERNATE_TYPE = 0x0009;
+    private static final int RES_STRING_POOL_HEADER_SIZE = ResChunkHeader.SIZE + 20;
 
     private final ResTable mTable;
     private final boolean mIgnoreRawValues;
@@ -116,7 +118,7 @@ public class BinaryXmlResourceParser implements XmlPullParser {
             if (!nextChunk()) {
                 throw new IOException("Input file is empty.");
             }
-            if (mParser.chunkType() != ResChunkHeader.RES_XML_TYPE) {
+            if (!isXmlChunk()) {
                 throw new IOException("Unexpected chunk: " + mParser.chunkName() + " (expected: RES_XML_TYPE)");
             }
         } catch (IOException ex) {
@@ -126,6 +128,35 @@ public class BinaryXmlResourceParser implements XmlPullParser {
         }
 
         mParser = new ResChunkPullParser(mIn, mParser.dataSize());
+    }
+
+    private boolean isXmlChunk() throws IOException {
+        if (mParser.chunkType() == ResChunkHeader.RES_XML_TYPE) {
+            return true;
+        }
+        if (mParser.chunkType() != RES_XML_ALTERNATE_TYPE
+                || mParser.headerSize() != ResChunkHeader.SIZE
+                || mParser.dataSize() < ResChunkHeader.SIZE) {
+            return false;
+        }
+
+        mIn.mark(ResChunkHeader.SIZE);
+        ResChunkHeader firstChild;
+        try {
+            firstChild = ResChunkHeader.read(mIn);
+        } finally {
+            mIn.reset();
+        }
+
+        boolean valid = firstChild.type == ResChunkHeader.RES_STRING_POOL_TYPE
+            && firstChild.headerSize >= RES_STRING_POOL_HEADER_SIZE
+            && firstChild.size >= firstChild.headerSize
+            && firstChild.size <= mParser.dataSize();
+        if (valid) {
+            Log.w(TAG, "Treating non-standard XML chunk type 0x%04x as RES_XML_TYPE.",
+                mParser.chunkType());
+        }
+        return valid;
     }
 
     @Override

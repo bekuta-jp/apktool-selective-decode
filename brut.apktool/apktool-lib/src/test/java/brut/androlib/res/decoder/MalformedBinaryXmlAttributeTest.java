@@ -50,7 +50,7 @@ public class MalformedBinaryXmlAttributeTest {
         assertEquals(originalAttributeCount - 1, decodedAttributeCount);
     }
 
-    private static int readFirstStartTagAttributeCount(byte[] manifest) throws Exception {
+    static int readFirstStartTagAttributeCount(byte[] manifest) throws Exception {
         Config config = new Config("test");
         ResTable table = new ResTable(new ApkInfo(), config);
         BinaryXmlResourceParser parser = new BinaryXmlResourceParser(table, false, true);
@@ -90,7 +90,7 @@ public class MalformedBinaryXmlAttributeTest {
         throw new AssertionError("No start element with attributes found.");
     }
 
-    private static byte[] readManifestFixture() throws IOException {
+    static byte[] readManifestFixture() throws IOException {
         InputStream resource = MalformedBinaryXmlAttributeTest.class
             .getResourceAsStream("/issue1680/issue1680.apk");
         assertNotNull(resource);

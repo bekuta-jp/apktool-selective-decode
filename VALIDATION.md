@@ -21,8 +21,10 @@
   style 情報だけを無視し、文字列本体を plain string として保持します。
 - 不正な binary XML attribute:
   その属性だけをスキップし、残りの `AndroidManifest.xml` をデコードします。
+- 非標準の最上位 binary XML chunk type `0x0009`:
+  外側headerと直後のstring pool chunkが妥当な場合だけAXMLとして扱います。
 
-どちらも、存在しない値を補完したり、文脈から値を推測したりしません。
+いずれも、存在しない値を補完したり、文脈から値を推測したりしません。
 
 ### 通常デコード回帰検証
 
@@ -66,6 +68,20 @@ baseline の `main` と修正版を同じツールチェーンでビルドし、
 同じ13 APKで候補jarの通常デコードと選択的デコードを比較した結果、
 `AndroidManifest.xml` と全smaliは13件すべて一致しました。
 
+### 非標準XML headerの検証
+
+追加の2 APKは、最上位chunk typeが標準の `0x0003` ではなく `0x0009` でした。
+修正前はmanifest parser初期化時に失敗し、修正後はwarningを出して通常デコードが
+完了しました。
+
+- `008b603811de18b5cedfa27a3635b9d63c450282003a2f0fece324d73b11193b.apk`
+- `0235b9ee5e5deb48abdc8f0d22623b99b25a986c50c4337541ca79ebdc60a3c3.apk`
+
+全15 APKで修正前後を比較した結果、12件は出力ツリーが完全一致し、上記2件は
+修正前失敗・修正後成功でした。残る1件は、大文字小文字だけが異なるsmaliクラスの
+`.1` suffix付与先が実行ごとに反転しました。同じbaseline jarの再実行でも再現し、
+対応するファイル内容のSHA-256は一致しているため、今回の変更による差分ではありません。
+
 ## English
 
 Selective decode changes only explicitly selected component handling. Standard decode
@@ -75,9 +91,14 @@ Malformed input is handled conservatively:
 
 - invalid string style metadata is dropped while preserving the plain string;
 - an invalid binary XML attribute is omitted while the remaining manifest is decoded;
+- top-level binary XML chunk type `0x0009` is accepted only when its outer header and
+  first string pool chunk are structurally valid;
 - values are never inferred or synthesized.
 
 Baseline and candidate standard-decode output trees were compared by relative path and
 SHA-256. The 13-APK sample run produced 11 exact matches and 2 baseline failures fixed
 by the candidate, with no output differences or candidate regressions. Standard and
 selective manifest/smali outputs matched for all 13 APKs.
+
+Two additional APKs with top-level XML chunk type `0x0009` failed before parser
+initialization on the baseline and decoded successfully with the candidate.
