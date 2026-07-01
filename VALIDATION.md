@@ -26,6 +26,9 @@
 - null (`0x0000`) の最上位 binary XML chunk type:
   外側headerと直後のstring pool chunkが妥当な場合だけAXMLとして扱います。
   XML内部のnull chunkは従来どおりスキップします。
+- 読み取り不能な非DEX APK entry:
+  DEX探索では選択されたDEX entryだけを開き、後段のコピーではZIP入力破損が
+  確認できたentryだけをwarning付きでスキップします。
 
 いずれも、存在しない値を補完したり、文脈から値を推測したりしません。
 
@@ -105,6 +108,29 @@ smaliクラスの `.1` suffix付与先だけで、対応するファイル内容
 対応するsmali内容は同一で、manifest decodeの結果には影響しません。
 再現可能な命名規則の導入は、今回のmanifest耐障害修正とは分離して扱います。
 
+### 読み取り不能なAPK entryの検証
+
+次のAPKは、`classes.dex`、`AndroidManifest.xml`、`resources.arsc`は正常ですが、
+3つのnative library entryが壊れていました。修正前はDEX container初期化時に
+ZIP全entryを走査して壊れたlibraryを開き、manifest処理前に失敗しました。
+
+- `02d0456a6e5c695a7402e378471a31fa8bfa473b4e957e8cb612b9a9f358d2cc.apk`
+
+修正後は選択されたDEXだけを直接読み込み、DEXとmanifestをdecodeしました。
+コピー不能な次の3 entryだけをwarning付きで除外し、正常な6 libraryは保持しました。
+
+- `lib/armeabi-v7a/libagora-rtc-sdk-jni.so`
+- `lib/armeabi-v7a/libbdpush_V2_9.so`
+- `lib/armeabi-v7a/libcrypto.so`
+
+コピー処理で無視するのは、cause chainに `ZipException` がある入力破損だけです。
+出力先のI/Oエラーは従来どおり失敗させます。また、選択されたDEX自体が読めない場合も
+失敗させ、DEX skipの場合はDEXを開きません。
+
+全25 APKの通常デコードを修正前後で比較した結果、23件は出力ツリーが完全一致し、
+上記1件は修正前失敗・修正後成功でした。残る1件は既知の大小文字衝突による
+smaliファイル名の揺らぎだけで、対応するファイル内容のSHA-256は一致しました。
+
 ## English
 
 Selective decode changes only explicitly selected component handling. Standard decode
@@ -140,3 +166,15 @@ Known issue: on case-insensitive file systems, the `.1` suffix used for smali cl
 name collisions can be assigned to either case variant between runs. The corresponding
 file contents remain identical, and deterministic collision naming is outside the
 scope of this manifest decoding change.
+
+Unreadable non-dex APK entries no longer block dex discovery. Only selected dex
+entries are opened, and archive entries that fail to copy due to a `ZipException`
+are omitted with a warning. Output I/O failures and unreadable selected dex entries
+remain fatal.
+
+The affected APK
+`02d0456a6e5c695a7402e378471a31fa8bfa473b4e957e8cb612b9a9f358d2cc.apk`
+decoded successfully while omitting three unreadable native libraries and preserving
+six readable libraries. Across all 25 APKs, 23 output trees were exact matches,
+this APK changed from baseline failure to candidate success, and one APK only showed
+the known case-colliding smali filename variance with matching file SHA-256 values.

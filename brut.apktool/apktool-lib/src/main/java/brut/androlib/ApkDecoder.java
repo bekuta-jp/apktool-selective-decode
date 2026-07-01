@@ -27,13 +27,16 @@ import brut.directory.Directory;
 import brut.directory.DirectoryException;
 import brut.directory.ExtFile;
 import brut.util.BackgroundWorker;
+import brut.util.BrutIO;
 import brut.util.OS;
 import org.apache.commons.io.FilenameUtils;
 
 import java.io.*;
+import java.nio.file.InvalidPathException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
+import java.util.zip.ZipException;
 
 public class ApkDecoder {
     private static final String TAG = ApkDecoder.class.getName();
@@ -54,6 +57,7 @@ public class ApkDecoder {
     private int mRawCopiedCount;
     private int mOriginalCopiedCount;
     private int mUnknownCopiedCount;
+    private int mSkippedCopiedCount;
     private String mDexAction;
     private String mManifestAction;
     private String mResAction;
@@ -66,6 +70,7 @@ public class ApkDecoder {
         mRawCopiedCount = 0;
         mOriginalCopiedCount = 0;
         mUnknownCopiedCount = 0;
+        mSkippedCopiedCount = 0;
         mDexAction = "skip";
         mManifestAction = "skip";
         mResAction = "skip";
@@ -85,7 +90,6 @@ public class ApkDecoder {
             mApkInfo = new ApkInfo();
             mApkInfo.setVersion(mConfig.getVersion());
             mApkInfo.setApkFile(mApkFile);
-            mSmaliDecoder = new SmaliDecoder(mApkFile, mConfig.isBaksmaliDebugMode());
             mResDecoder = new ResDecoder(mApkInfo, mConfig);
 
             OS.rmdir(outDir);
@@ -136,6 +140,9 @@ public class ApkDecoder {
         if (mode == Config.DecodeMode.SKIP) {
             Log.i(TAG, "Skipping dex files...");
             return;
+        }
+        if (mode == Config.DecodeMode.DECODE) {
+            mSmaliDecoder = new SmaliDecoder(mApkFile, mConfig.isBaksmaliDebugMode());
         }
 
         try {
@@ -275,7 +282,7 @@ public class ApkDecoder {
     private void copyRawFiles(File outDir) throws AndrolibException {
         try {
             Directory in = mApkFile.getDirectory();
-            Set<String> dexFiles = mSmaliDecoder.getDexFiles();
+            Set<String> dexFiles = getDecodedDexFiles();
             Map<String, String> resFileMap = mResDecoder.getResFileMap();
             boolean noAssets = mConfig.isDecodeAssetsNone();
 
@@ -289,8 +296,9 @@ public class ApkDecoder {
                     fileName = dirName + in.separator + fileName;
                     if (!ApkInfo.ORIGINAL_FILES_PATTERN.matcher(fileName).matches()
                             && !dexFiles.contains(fileName) && !resFileMap.containsKey(fileName)) {
-                        in.copyToDir(outDir, fileName);
-                        mRawCopiedCount++;
+                        if (copyApkEntry(in, outDir, fileName)) {
+                            mRawCopiedCount++;
+                        }
                     }
                 }
             }
@@ -312,8 +320,9 @@ public class ApkDecoder {
                     if (skipManifest && fileName.equals("AndroidManifest.xml")) {
                         continue;
                     }
-                    in.copyToDir(originalDir, fileName);
-                    mOriginalCopiedCount++;
+                    if (copyApkEntry(in, originalDir, fileName)) {
+                        mOriginalCopiedCount++;
+                    }
                 }
             }
         } catch (DirectoryException ex) {
@@ -327,7 +336,7 @@ public class ApkDecoder {
         Log.i(TAG, "Copying unknown files...");
         try {
             Directory in = mApkFile.getDirectory();
-            Set<String> dexFiles = mSmaliDecoder.getDexFiles();
+            Set<String> dexFiles = getDecodedDexFiles();
             Map<String, String> resFileMap = mResDecoder.getResFileMap();
             boolean skipRes = getResMode() == Config.DecodeMode.SKIP;
 
@@ -337,8 +346,9 @@ public class ApkDecoder {
                 }
                 if (!ApkInfo.STANDARD_FILES_PATTERN.matcher(fileName).matches() && !dexFiles.contains(fileName)
                         && !resFileMap.containsKey(fileName)) {
-                    in.copyToDir(unknownDir, fileName);
-                    mUnknownCopiedCount++;
+                    if (copyApkEntry(in, unknownDir, fileName)) {
+                        mUnknownCopiedCount++;
+                    }
                 }
             }
         } catch (DirectoryException ex) {
@@ -349,7 +359,7 @@ public class ApkDecoder {
     private void writeApkInfo(File outDir) throws AndrolibException {
         // If we did not decode the manifest, store the inferred dex opcode API level.
         if (!mApkInfo.hasManifest() || getManifestMode() != Config.DecodeMode.DECODE) {
-            int apiLevel = mSmaliDecoder.getInferredApiLevel();
+            int apiLevel = mSmaliDecoder != null ? mSmaliDecoder.getInferredApiLevel() : 0;
             if (apiLevel > 0) {
                 mApkInfo.getSdkInfo().setMinSdkVersion(Integer.toString(apiLevel));
             }
@@ -443,10 +453,52 @@ public class ApkDecoder {
         }
     }
 
+    private Set<String> getDecodedDexFiles() {
+        return mSmaliDecoder != null ? mSmaliDecoder.getDexFiles() : Collections.emptySet();
+    }
+
+    private boolean copyApkEntry(Directory in, File outDir, String fileName) throws DirectoryException {
+        try {
+            in.copyToDir(outDir, fileName);
+            return true;
+        } catch (DirectoryException ex) {
+            if (!isZipFailure(ex)) {
+                throw ex;
+            }
+
+            try {
+                String safePath = BrutIO.sanitizePath(outDir, fileName);
+                OS.rmfile(new File(outDir, safePath));
+            } catch (IOException | InvalidPathException ignored) {
+            }
+
+            mSkippedCopiedCount++;
+            Log.w(TAG, "Skipping unreadable APK entry %s (%s)", fileName, ex.getMessage());
+            return false;
+        }
+    }
+
+    private boolean isZipFailure(Throwable throwable) {
+        while (throwable != null) {
+            if (throwable instanceof ZipException) {
+                return true;
+            }
+            throwable = throwable.getCause();
+        }
+        return false;
+    }
+
     private void logDecodeSummary() {
+        String copied = String.format("copied(original=%d, raw=%d, unknown=%d",
+            mOriginalCopiedCount, mRawCopiedCount, mUnknownCopiedCount);
+        if (mSkippedCopiedCount > 0) {
+            copied += ", skipped=" + mSkippedCopiedCount;
+        }
+        copied += ")";
+
         Log.i(TAG, String.format(
-            "Decode summary: dex=%s (%d files), manifest=%s, res=%s, copied(original=%d, raw=%d, unknown=%d)",
+            "Decode summary: dex=%s (%d files), manifest=%s, res=%s, %s",
             mDexAction, mDexHandledCount, mManifestAction, mResAction,
-            mOriginalCopiedCount, mRawCopiedCount, mUnknownCopiedCount));
+            copied));
     }
 }

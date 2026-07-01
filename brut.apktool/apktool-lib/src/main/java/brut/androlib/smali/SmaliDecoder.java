@@ -23,30 +23,28 @@ import com.android.tools.smali.baksmali.BaksmaliOptions;
 import com.android.tools.smali.dexlib2.analysis.InlineMethodResolver;
 import com.android.tools.smali.dexlib2.dexbacked.DexBackedDexFile;
 import com.android.tools.smali.dexlib2.dexbacked.DexBackedOdexFile;
-import com.android.tools.smali.dexlib2.dexbacked.ZipDexContainer;
+import com.android.tools.smali.dexlib2.util.DexUtil;
+import com.android.tools.smali.util.InputStreamUtil;
 
 import java.io.File;
+import java.io.InputStream;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 
 public class SmaliDecoder {
-    private final ZipDexContainer mDexContainer;
+    private final File mApkFile;
     private final boolean mDebugMode;
     private final Set<String> mDexFiles;
     private final AtomicInteger mInferredApiLevel;
 
-    public SmaliDecoder(File apkFile, boolean debugMode) throws AndrolibException {
-        mDexContainer = new ZipDexContainer(apkFile, null);
-        // ZipDexContainer is lazily initialized and not thread-safe. Eagerly initialize on the constructing thread.
-        try {
-            mDexContainer.getEntry("");
-        } catch (IOException ex) {
-            throw new AndrolibException("Could not open apk file: " + apkFile, ex);
-        }
+    public SmaliDecoder(File apkFile, boolean debugMode) {
+        mApkFile = apkFile;
         mDebugMode = debugMode;
         mDexFiles = ConcurrentHashMap.newKeySet();
         mInferredApiLevel = new AtomicInteger();
@@ -61,37 +59,39 @@ public class SmaliDecoder {
     }
 
     public void decode(String dexName, File outDir) throws AndrolibException {
-        try {
-            // Fetch the requested dex file from the dex container.
-            ZipDexContainer.DexEntry<DexBackedDexFile> dexEntry = mDexContainer.getEntry(dexName);
-            if (dexEntry == null) {
+        try (ZipFile apkFile = new ZipFile(mApkFile)) {
+            ZipEntry dexEntry = apkFile.getEntry(dexName);
+            if (dexEntry == null || dexEntry.isDirectory()) {
                 throw new AndrolibException("Could not find file: " + dexName);
             }
 
-            // Add the requested dex file.
+            byte[] data;
+            try (InputStream in = apkFile.getInputStream(dexEntry)) {
+                data = InputStreamUtil.toByteArray(in);
+            }
+            if (data.length == 0) {
+                throw new AndrolibException("Dex file is empty: " + dexName);
+            }
+
             Map<Integer, DexBackedDexFile> dexFiles = new TreeMap<>();
-            dexFiles.put(1, dexEntry.getDexFile());
-
-            // Add additional dex files if it's a multi-dex container.
-            for (String dexEntryName : mDexContainer.getDexEntryNames()) {
-                if (dexEntryName.equals(dexName)) {
-                    continue;
-                }
-
-                String prefix = dexName + "/";
-                if (!dexEntryName.startsWith(prefix)) {
-                    continue;
-                }
-
-                int dexNum;
+            int offset = 0;
+            int nextDexNum = 1;
+            while (offset < data.length) {
+                DexBackedDexFile dexFile;
                 try {
-                    dexNum = Integer.parseInt(dexEntryName.substring(prefix.length()));
-                } catch (NumberFormatException ignored) {
-                    continue;
+                    DexUtil.verifyDexHeader(data, offset);
+                    dexFile = new DexBackedDexFile(null, data, offset);
+                } catch (RuntimeException ex) {
+                    throw new AndrolibException("Could not read dex file: " + dexName, ex);
                 }
-                if (dexNum > 1) {
-                    dexFiles.put(dexNum, mDexContainer.getEntry(dexEntryName).getDexFile());
+
+                int dexSize = dexFile.getFileSize();
+                if (dexSize <= 0 || dexSize > data.length - offset) {
+                    throw new AndrolibException("Invalid dex file size in: " + dexName);
                 }
+
+                dexFiles.put(nextDexNum++, dexFile);
+                offset += dexSize;
             }
 
             // Decode the dex files into separate folders.
