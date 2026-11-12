@@ -1,5 +1,15 @@
 # Compatibility and Validation / 互換性と検証
 
+2026-11-12: ZIP文字コード、不正DEX型の再帰、非空リソースの誤診断を修正しました。
+開発用35 APKの通常・選択的decode計70組で修正前後の出力が完全一致し、
+今回の18入力もそれぞれの受入条件を満たしました。
+動作変更、適用範囲、再現手順と検証条件は
+[`DECODE_HARDENING_2026-11-12.md`](DECODE_HARDENING_2026-11-12.md) を参照してください。
+
+2026-11-12: All 35 development APKs matched the pre-change outputs in both decode modes
+(70 pairs). The 18 incident inputs met their distinct acceptance criteria. See the linked
+report for changed behavior, limitations, and reproducible validation commands.
+
 ## 日本語
 
 ### 目的

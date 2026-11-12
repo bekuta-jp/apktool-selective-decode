@@ -120,13 +120,26 @@ public class BinaryResourceParser {
     }
 
     public void parse(InputStream in) throws AndrolibException {
+        parse(in, "resources.arsc");
+    }
+
+    public void parse(InputStream in, String sourceName) throws AndrolibException {
         reset();
         mIn = new BinaryDataInputStream(new BufferedInputStream(in));
 
         ResChunkPullParser parser = new ResChunkPullParser(mIn);
+        byte[] firstHeader = new byte[ResChunkHeader.SIZE];
+        int headerBytes = 0;
         try {
+            mIn.mark(firstHeader.length);
+            int value;
+            while (headerBytes < firstHeader.length && (value = mIn.read()) != -1) {
+                firstHeader[headerBytes++] = (byte) value;
+            }
+            mIn.reset();
             if (!nextChunk(parser)) {
-                throw new AndrolibException("Input file is empty.");
+                throw new AndrolibException(headerBytes == 0 ? "Input file is empty."
+                    : "Non-empty input contains no supported resource table chunk.");
             }
             if (parser.chunkType() != ResChunkHeader.RES_TABLE_TYPE) {
                 throw new AndrolibException("Unexpected chunk: " + parser.chunkName() + " (expected: RES_TABLE_TYPE)");
@@ -140,8 +153,12 @@ public class BinaryResourceParser {
             if (mIn.available() > 0) {
                 Log.d(TAG, "Ignoring trailing data at 0x%08x.", mIn.position());
             }
-        } catch (IOException ex) {
-            throw new AndrolibException("Could not decode arsc file.", ex);
+        } catch (IOException | AndrolibException ex) {
+            throw new AndrolibException(String.format(
+                "Could not decode %s (first header at 0x00000000: %s; position=0x%08x): %s",
+                sourceName, headerBytes == 0 ? "<empty>"
+                    : BaseEncoding.base16().lowerCase().encode(Arrays.copyOf(firstHeader, headerBytes)),
+                mIn.position(), ex.getMessage()), ex);
         }
     }
 

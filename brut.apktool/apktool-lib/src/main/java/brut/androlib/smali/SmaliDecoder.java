@@ -18,11 +18,13 @@ package brut.androlib.smali;
 
 import brut.androlib.exceptions.AndrolibException;
 import brut.util.OS;
+import brut.util.ZipUtils;
 import com.android.tools.smali.baksmali.Baksmali;
 import com.android.tools.smali.baksmali.BaksmaliOptions;
 import com.android.tools.smali.dexlib2.analysis.InlineMethodResolver;
 import com.android.tools.smali.dexlib2.dexbacked.DexBackedDexFile;
 import com.android.tools.smali.dexlib2.dexbacked.DexBackedOdexFile;
+import com.android.tools.smali.dexlib2.formatter.DexFormatter;
 import com.android.tools.smali.dexlib2.util.DexUtil;
 import com.android.tools.smali.util.InputStreamUtil;
 
@@ -59,8 +61,8 @@ public class SmaliDecoder {
     }
 
     public void decode(String dexName, File outDir) throws AndrolibException {
-        try (ZipFile apkFile = new ZipFile(mApkFile)) {
-            ZipEntry dexEntry = apkFile.getEntry(dexName);
+        try (ZipFile apkFile = ZipUtils.openZipFile(mApkFile)) {
+            ZipEntry dexEntry = ZipUtils.getZipEntry(apkFile, dexName);
             if (dexEntry == null || dexEntry.isDirectory()) {
                 throw new AndrolibException("Could not find file: " + dexName);
             }
@@ -90,6 +92,8 @@ public class SmaliDecoder {
                     throw new AndrolibException("Invalid dex file size in: " + dexName);
                 }
 
+                validateTypes(dexFile, dexName, offset);
+
                 dexFiles.put(nextDexNum++, dexFile);
                 offset += dexSize;
             }
@@ -117,6 +121,23 @@ public class SmaliDecoder {
             mDexFiles.add(dexName);
         } catch (IOException ex) {
             throw new AndrolibException("Could not baksmali file: " + dexName, ex);
+        }
+    }
+
+    private static void validateTypes(DexBackedDexFile dexFile, String dexName, int offset)
+            throws AndrolibException {
+        // dexlib2's error formatter recursively formats TypeReference.toString() for invalid
+        // types. Validate the raw Strings before handing any references to baksmali. Use the
+        // same formatter rules, without changing normal descriptors or inventing replacements.
+        for (int index = 0; index < dexFile.getTypeSection().size(); index++) {
+            try {
+                String type = dexFile.getTypeSection().get(index);
+                DexFormatter.INSTANCE.getType(type);
+            } catch (RuntimeException ex) {
+                throw new AndrolibException(String.format(
+                    "Invalid type reference in %s (dex offset 0x%x, type index %d): %s",
+                    dexName, offset, index, ex.getMessage()), ex);
+            }
         }
     }
 

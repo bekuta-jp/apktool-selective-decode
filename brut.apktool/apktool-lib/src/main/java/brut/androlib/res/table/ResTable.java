@@ -126,7 +126,7 @@ public class ResTable {
                 BinaryResourceParser parser = isMainPackage
                     ? new BinaryResourceParser(this, mConfig.isKeepBrokenResources(), mConfig.isDecodeResolveGreedy())
                     : new BinaryResourceParser(this, true, true);
-                parser.parse(in);
+                parser.parse(in, apkFile + "!resources.arsc");
 
                 // Only flag the app for the main package.
                 if (isMainPackage) {

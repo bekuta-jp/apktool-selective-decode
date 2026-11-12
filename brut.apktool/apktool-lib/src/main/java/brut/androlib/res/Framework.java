@@ -27,6 +27,7 @@ import brut.util.BrutIO;
 import brut.util.OS;
 import brut.util.OSDetection;
 import brut.util.Pair;
+import brut.util.ZipUtils;
 
 import java.io.*;
 import java.nio.ByteBuffer;
@@ -70,7 +71,7 @@ public class Framework {
     }
 
     public void install(File apkFile) throws AndrolibException {
-        try (ZipFile zip = new ZipFile(apkFile)) {
+        try (ZipFile zip = ZipUtils.openZipFile(apkFile)) {
             ZipEntry entry = zip.getEntry("resources.arsc");
             if (entry == null) {
                 throw new AndrolibException("Could not find resources.arsc in file: " + apkFile);

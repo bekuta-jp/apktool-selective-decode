@@ -14,6 +14,7 @@ gradle.properties
 *.setting
 
 # Tmp Files
+__pycache__/
 *.kate-swp
 *~
 *.DS_Store

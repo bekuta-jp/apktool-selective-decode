@@ -1,0 +1,816 @@
+{
+  "date": "2026-11-12",
+  "timezone": "Asia/Tokyo",
+  "baseline_commit": "284ad4c02f0a7ee96c766a8e2e01e6c9e2854315",
+  "environment": {
+    "java": "Amazon Corretto 11.0.27",
+    "platform": "macOS arm64",
+    "gradle": "8.14.4",
+    "smali": "b6365a84f4 / 3.0.9-dev",
+    "comparison_embedded_version": "v3.0.2-16-284ad4c0-SNAPSHOT"
+  },
+  "jars": {
+    "before.jar": "5cea27d8fbf8697acf1336280a273926cede385aaefeb737c94a9b367da8d1ab",
+    "after.jar": "60e87f79b039a5977b3f1671048bfbeb915fb6be4757133478df96b76689df76"
+  },
+  "tests": {
+    "tests": 216,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "compatibility": {
+    "apks": 35,
+    "pairs": 70,
+    "decodes": 140,
+    "same": 70,
+    "different": 0,
+    "regressions": 0,
+    "timeouts": 0,
+    "compared": [
+      "relative paths",
+      "file sizes",
+      "SHA-256",
+      "directories",
+      "symlink targets"
+    ],
+    "ignored": [
+      "mtime",
+      "ownership"
+    ],
+    "java_active_processors": 1,
+    "apktool_jobs": 1,
+    "inputs": [
+      {
+        "sha256": "00076d3c2492368aca9587f4e7e3cd30642779d008a2ff9359669360618f5d55",
+        "bytes": 86424949,
+        "normal": {
+          "result": "same",
+          "files": 90417
+        },
+        "selective": {
+          "result": "same",
+          "files": 77531
+        }
+      },
+      {
+        "sha256": "001ce6f4bf6ae4904031d040ab09b8e5caa712de0db6b5f29ff420dbcec41d06",
+        "bytes": 69262843,
+        "normal": {
+          "result": "same",
+          "files": 57150
+        },
+        "selective": {
+          "result": "same",
+          "files": 49934
+        }
+      },
+      {
+        "sha256": "003aedf02c4361fee1fa5c156cedfa9da45a0cd800810d45cfaf814d3a3300c6",
+        "bytes": 61245873,
+        "normal": {
+          "result": "same",
+          "files": 9289
+        },
+        "selective": {
+          "result": "same",
+          "files": 8347
+        }
+      },
+      {
+        "sha256": "0044e73179edc3a9e51cb108ace9f532d7357debe9d7daf87b820657cca027a9",
+        "bytes": 27092189,
+        "normal": {
+          "result": "same",
+          "files": 21389
+        },
+        "selective": {
+          "result": "same",
+          "files": 19079
+        }
+      },
+      {
+        "sha256": "004f954277b1674deb6fd919f5eedb9eb755f49aae6bd3156d8bcb92096428d8",
+        "bytes": 68738499,
+        "normal": {
+          "result": "same",
+          "files": 34977
+        },
+        "selective": {
+          "result": "same",
+          "files": 33858
+        }
+      },
+      {
+        "sha256": "00515721ba5017ef8c4c37139dace91675bcda82c76187735f2fc74bf75b0014",
+        "bytes": 143617138,
+        "normal": {
+          "result": "same",
+          "files": 1227
+        },
+        "selective": {
+          "result": "same",
+          "files": 206
+        }
+      },
+      {
+        "sha256": "00522d5a58bd80467da449e48c8e23f4bebfda97eed28b81153ca873b8dfb66a",
+        "bytes": 188221703,
+        "normal": {
+          "result": "same",
+          "files": 132657
+        },
+        "selective": {
+          "result": "same",
+          "files": 115105
+        }
+      },
+      {
+        "sha256": "005af753a03fa7d753fd2c8988e91b47966187a504f24e4187bdd19af5797b00",
+        "bytes": 27910634,
+        "normal": {
+          "result": "same",
+          "files": 1680
+        },
+        "selective": {
+          "result": "same",
+          "files": 539
+        }
+      },
+      {
+        "sha256": "008b603811de18b5cedfa27a3635b9d63c450282003a2f0fece324d73b11193b",
+        "bytes": 3067444,
+        "normal": {
+          "result": "same",
+          "files": 17
+        },
+        "selective": {
+          "result": "same",
+          "files": 9
+        }
+      },
+      {
+        "sha256": "017dbdfa645df0d536591df7930f12c771431d171950f0e2f4d0cd101ac970cd",
+        "bytes": 1369825,
+        "normal": {
+          "result": "same",
+          "files": 33
+        },
+        "selective": {
+          "result": "same",
+          "files": 19
+        }
+      },
+      {
+        "sha256": "0235b9ee5e5deb48abdc8f0d22623b99b25a986c50c4337541ca79ebdc60a3c3",
+        "bytes": 8033480,
+        "normal": {
+          "result": "same",
+          "files": 15
+        },
+        "selective": {
+          "result": "same",
+          "files": 9
+        }
+      },
+      {
+        "sha256": "029088c8e68a2b9f63a6d51cb4de61fb5876c3a6dcea4a73d49d4f8086204297",
+        "bytes": 3064528,
+        "normal": {
+          "result": "same",
+          "files": 12
+        },
+        "selective": {
+          "result": "same",
+          "files": 9
+        }
+      },
+      {
+        "sha256": "02aa562967714ca719fce5955659a47d97de96c0ac9491e2bc56e90614d15311",
+        "bytes": 1055831,
+        "normal": {
+          "result": "same",
+          "files": 1998
+        },
+        "selective": {
+          "result": "same",
+          "files": 1533
+        }
+      },
+      {
+        "sha256": "02d0456a6e5c695a7402e378471a31fa8bfa473b4e957e8cb612b9a9f358d2cc",
+        "bytes": 28496247,
+        "normal": {
+          "result": "same",
+          "files": 2880
+        },
+        "selective": {
+          "result": "same",
+          "files": 41
+        }
+      },
+      {
+        "sha256": "04db7e1a96b08d5c906ed1736c9937565339010708e89df2bfa2a15968d23ebe",
+        "bytes": 142460,
+        "normal": {
+          "result": "same",
+          "files": 54
+        },
+        "selective": {
+          "result": "same",
+          "files": 23
+        }
+      },
+      {
+        "sha256": "05d24900384977cc9d9e4f55c2f4dadb4b61e0ab8e62563f8ab227cc8f4437d1",
+        "bytes": 27822197,
+        "normal": {
+          "result": "same",
+          "files": 7283
+        },
+        "selective": {
+          "result": "same",
+          "files": 5625
+        }
+      },
+      {
+        "sha256": "05d448535a23d25936b3bdee4fc58feab106e153f42252fcff62efaac3f18c7f",
+        "bytes": 84212800,
+        "normal": {
+          "result": "same",
+          "files": 2882
+        },
+        "selective": {
+          "result": "same",
+          "files": 391
+        }
+      },
+      {
+        "sha256": "061002c1ba5215e2eebcd3ac0b05d59f11dea3e31cfdc07f258524fe12ffd936",
+        "bytes": 4449729,
+        "normal": {
+          "result": "same",
+          "files": 14
+        },
+        "selective": {
+          "result": "same",
+          "files": 9
+        }
+      },
+      {
+        "sha256": "06558211be0c74f6be6b1fd99b1e5a83811661300f84b16850cc16cfb1ad5e9c",
+        "bytes": 5447785,
+        "normal": {
+          "result": "same",
+          "files": 14
+        },
+        "selective": {
+          "result": "same",
+          "files": 9
+        }
+      },
+      {
+        "sha256": "065aa438d3f12cab511720176c04cc77056adfc0bb1ae7d23103d1f04eef87a7",
+        "bytes": 5746373,
+        "normal": {
+          "result": "same",
+          "files": 13
+        },
+        "selective": {
+          "result": "same",
+          "files": 9
+        }
+      },
+      {
+        "sha256": "083344e6945c787bd7fb98c986890100b95ec1c4ee4a9207ba9a754ce8621226",
+        "bytes": 1589340,
+        "normal": {
+          "result": "same",
+          "files": 98
+        },
+        "selective": {
+          "result": "same",
+          "files": 25
+        }
+      },
+      {
+        "sha256": "084412c81922f2bd68cfe4579438997966178e02fa89d6a5f567bdbfddc47449",
+        "bytes": 4953696,
+        "normal": {
+          "result": "same",
+          "files": 13
+        },
+        "selective": {
+          "result": "same",
+          "files": 9
+        }
+      },
+      {
+        "sha256": "08c0d94133d5db17437624ebdd871263573f83cc714d0c9785d3e54f19f2dc0b",
+        "bytes": 64226,
+        "normal": {
+          "result": "same",
+          "files": 150
+        },
+        "selective": {
+          "result": "same",
+          "files": 150
+        }
+      },
+      {
+        "sha256": "091e46379e6ad6c7c941e362f80b0882d548da4c7b3f29e9cf6c44d520b07b71",
+        "bytes": 4652298,
+        "normal": {
+          "result": "same",
+          "files": 15
+        },
+        "selective": {
+          "result": "same",
+          "files": 9
+        }
+      },
+      {
+        "sha256": "094d056f6466b1d18cdaddc6239a45a45a2ee50d26481b40576531fe0978fc0e",
+        "bytes": 3042916,
+        "normal": {
+          "result": "same",
+          "files": 4826
+        },
+        "selective": {
+          "result": "same",
+          "files": 4060
+        }
+      },
+      {
+        "sha256": "09d8dc1ecb9bab88cd1503508f2599b7f10e2e7d30017601c8f021c9ff8d898e",
+        "bytes": 58498,
+        "normal": {
+          "result": "same",
+          "files": 31
+        },
+        "selective": {
+          "result": "same",
+          "files": 20
+        }
+      },
+      {
+        "sha256": "0aefbb1bca42741b06e195895497018219cbe6d1a74fb37a1c8fa6bf7be29c5a",
+        "bytes": 140065,
+        "normal": {
+          "result": "same",
+          "files": 171
+        },
+        "selective": {
+          "result": "same",
+          "files": 167
+        }
+      },
+      {
+        "sha256": "0b0675d2a35e9e8a6450dfb91a13c5336f328f39e24d1931609e126d1f1e3ffe",
+        "bytes": 3504087,
+        "normal": {
+          "result": "same",
+          "files": 1117
+        },
+        "selective": {
+          "result": "same",
+          "files": 366
+        }
+      },
+      {
+        "sha256": "119914833da2ae3c608e9d680e0379f067d8f32620163fc5fdc8a9aa404f205d",
+        "bytes": 143531982,
+        "normal": {
+          "result": "same",
+          "files": 1235
+        },
+        "selective": {
+          "result": "same",
+          "files": 206
+        }
+      },
+      {
+        "sha256": "4d0bf681db13f43b4e6c0459637e349165dd2a09b78fcf8ea0c38e0a8f92dd15",
+        "bytes": 22527037,
+        "normal": {
+          "result": "same",
+          "files": 17282
+        },
+        "selective": {
+          "result": "same",
+          "files": 16050
+        }
+      },
+      {
+        "sha256": "5de0cfd45af1777b1f5e929a841d6f61bed429eb854a1eb1de44af93ff9d9dbd",
+        "bytes": 135242024,
+        "normal": {
+          "result": "same",
+          "files": 8873
+        },
+        "selective": {
+          "result": "same",
+          "files": 325
+        }
+      },
+      {
+        "sha256": "62eb028ea172c2d397e5665e2839e9bcf3631bfce400b29cfa51565b6fb0dc01",
+        "bytes": 4152934,
+        "normal": {
+          "result": "same",
+          "files": 182
+        },
+        "selective": {
+          "result": "same",
+          "files": 135
+        }
+      },
+      {
+        "sha256": "66b4618c08c2fcc3723d10dc3a20bc9819a5c3dc73ca7f29150d2628fc400ea4",
+        "bytes": 548914026,
+        "normal": {
+          "result": "same",
+          "files": 8552
+        },
+        "selective": {
+          "result": "same",
+          "files": 180
+        }
+      },
+      {
+        "sha256": "772aa39e2303f48ab85df27d19febeaf6bbd8e803c202fb02d6a8f8133f5564a",
+        "bytes": 982148,
+        "normal": {
+          "result": "same",
+          "files": 2520
+        },
+        "selective": {
+          "result": "same",
+          "files": 2489
+        }
+      },
+      {
+        "sha256": "7fa1d8719f46ccb1c918e847ba31acf512b153115575035ca3dc5cefa62ce84a",
+        "bytes": 118785509,
+        "normal": {
+          "result": "same",
+          "files": 7193
+        },
+        "selective": {
+          "result": "same",
+          "files": 517
+        }
+      }
+    ]
+  },
+  "incidents": {
+    "inputs": 18,
+    "accepted": 18,
+    "assertions": 162,
+    "all_inputs_unchanged": true,
+    "cases": [
+      {
+        "path": "SMS/0214ff4637a3e5c393e066578645f873bb7115fdcb61445cab357c4e849325de.105f35cfdf5556fd1fa5a2a33b222e94",
+        "sha256": "0214ff4637a3e5c393e066578645f873bb7115fdcb61445cab357c4e849325de",
+        "group": "zip_charset",
+        "before_returncode": 1,
+        "after_returncode": 0,
+        "accepted": true,
+        "checks": {
+          "before_failed": true,
+          "before_charset_error": true,
+          "after_decode_success": true,
+          "manifest_present": true,
+          "normal_decode_success": true,
+          "raw_decode_success": true,
+          "manifest_bytes_unchanged": true,
+          "classes.dex:raw_bytes_unchanged": true,
+          "classes.dex:standalone_success": true,
+          "classes.dex:all_classes": true,
+          "classes.dex:smali_identical": true,
+          "classes.dex:normal_smali_identical": true,
+          "dex_present": true,
+          "input_unchanged": true
+        }
+      },
+      {
+        "path": "SMS/1a2a68377ba08b5ceb5ea9c245e93b3cdbc3721e8116e4570eaf20cfc00ffaef.0ce0851ea89d82411c70ae1dfc6283b5",
+        "sha256": "1a2a68377ba08b5ceb5ea9c245e93b3cdbc3721e8116e4570eaf20cfc00ffaef",
+        "group": "zip_charset",
+        "before_returncode": 1,
+        "after_returncode": 0,
+        "accepted": true,
+        "checks": {
+          "before_failed": true,
+          "before_charset_error": true,
+          "after_decode_success": true,
+          "manifest_present": true,
+          "normal_decode_success": true,
+          "raw_decode_success": true,
+          "manifest_bytes_unchanged": true,
+          "classes.dex:raw_bytes_unchanged": true,
+          "classes.dex:standalone_success": true,
+          "classes.dex:all_classes": true,
+          "classes.dex:smali_identical": true,
+          "classes.dex:normal_smali_identical": true,
+          "dex_present": true,
+          "input_unchanged": true
+        }
+      },
+      {
+        "path": "SMS/1ad9a317eda3185a5185fcc158486314fffdbbe9747d8380fab56f3bce0e0d3c.da966d2f85340837bafa3bfe3dd18815",
+        "sha256": "1ad9a317eda3185a5185fcc158486314fffdbbe9747d8380fab56f3bce0e0d3c",
+        "group": "zip_charset",
+        "before_returncode": 1,
+        "after_returncode": 0,
+        "accepted": true,
+        "checks": {
+          "before_failed": true,
+          "before_charset_error": true,
+          "after_decode_success": true,
+          "manifest_present": true,
+          "normal_decode_success": true,
+          "raw_decode_success": true,
+          "manifest_bytes_unchanged": true,
+          "classes.dex:raw_bytes_unchanged": true,
+          "classes.dex:standalone_success": true,
+          "classes.dex:all_classes": true,
+          "classes.dex:smali_identical": true,
+          "classes.dex:normal_smali_identical": true,
+          "dex_present": true,
+          "input_unchanged": true
+        }
+      },
+      {
+        "path": "SMS/22b8660b3cefe0496296e39c1584ac9d197f20c5ae266cef352e9263ea0dc3fc.20a90e8d20482132a903f451dfeb32fa",
+        "sha256": "22b8660b3cefe0496296e39c1584ac9d197f20c5ae266cef352e9263ea0dc3fc",
+        "group": "zip_charset",
+        "before_returncode": 1,
+        "after_returncode": 0,
+        "accepted": true,
+        "checks": {
+          "before_failed": true,
+          "before_charset_error": true,
+          "after_decode_success": true,
+          "manifest_present": true,
+          "normal_decode_success": true,
+          "raw_decode_success": true,
+          "manifest_bytes_unchanged": true,
+          "classes.dex:raw_bytes_unchanged": true,
+          "classes.dex:standalone_success": true,
+          "classes.dex:all_classes": true,
+          "classes.dex:smali_identical": true,
+          "classes.dex:normal_smali_identical": true,
+          "dex_present": true,
+          "input_unchanged": true
+        }
+      },
+      {
+        "path": "SMS/2cbd7843acbb3197a810630e81ba62d40ca00ecf9ffcccb0c1cf47233d656709.cfdb9fcd9d0699eed2e12dae6f4b88c8",
+        "sha256": "2cbd7843acbb3197a810630e81ba62d40ca00ecf9ffcccb0c1cf47233d656709",
+        "group": "zip_charset",
+        "before_returncode": 1,
+        "after_returncode": 0,
+        "accepted": true,
+        "checks": {
+          "before_failed": true,
+          "before_charset_error": true,
+          "after_decode_success": true,
+          "manifest_present": true,
+          "normal_decode_success": true,
+          "raw_decode_success": true,
+          "manifest_bytes_unchanged": true,
+          "classes.dex:raw_bytes_unchanged": true,
+          "classes.dex:standalone_success": true,
+          "classes.dex:all_classes": true,
+          "classes.dex:smali_identical": true,
+          "classes.dex:normal_smali_identical": true,
+          "dex_present": true,
+          "input_unchanged": true
+        }
+      },
+      {
+        "path": "SMS/30b497d3e05434275ec92d70854b26e16779fa252bb884ca4d27f75cd1fefe72.823deefdf08a77dba194ca393862835f",
+        "sha256": "30b497d3e05434275ec92d70854b26e16779fa252bb884ca4d27f75cd1fefe72",
+        "group": "zip_charset",
+        "before_returncode": 1,
+        "after_returncode": 0,
+        "accepted": true,
+        "checks": {
+          "before_failed": true,
+          "before_charset_error": true,
+          "after_decode_success": true,
+          "manifest_present": true,
+          "normal_decode_success": true,
+          "raw_decode_success": true,
+          "manifest_bytes_unchanged": true,
+          "classes.dex:raw_bytes_unchanged": true,
+          "classes.dex:standalone_success": true,
+          "classes.dex:all_classes": true,
+          "classes.dex:smali_identical": true,
+          "classes.dex:normal_smali_identical": true,
+          "dex_present": true,
+          "input_unchanged": true
+        }
+      },
+      {
+        "path": "Adware/36eca1fc89c7eae882e126a9796bb9bb290213b00e4249c0811fe99235e50f9c.3fa5b7d172ac65c655759266d8e2ea2a",
+        "sha256": "36eca1fc89c7eae882e126a9796bb9bb290213b00e4249c0811fe99235e50f9c",
+        "group": "zip_charset",
+        "before_returncode": 1,
+        "after_returncode": 0,
+        "accepted": true,
+        "checks": {
+          "before_failed": true,
+          "before_charset_error": true,
+          "after_decode_success": true,
+          "manifest_present": true,
+          "normal_decode_success": true,
+          "raw_decode_success": true,
+          "manifest_bytes_unchanged": true,
+          "classes.dex:raw_bytes_unchanged": true,
+          "classes.dex:standalone_success": true,
+          "classes.dex:all_classes": true,
+          "classes.dex:smali_identical": true,
+          "classes.dex:normal_smali_identical": true,
+          "dex_present": true,
+          "input_unchanged": true
+        }
+      },
+      {
+        "path": "SMS/df306e312f6e55eb08514c614daa5ba3a76fc2a8ece30d090600bb3b06d4c6d5.d8a8e556bc7aae17df046a12dc36cbba",
+        "sha256": "df306e312f6e55eb08514c614daa5ba3a76fc2a8ece30d090600bb3b06d4c6d5",
+        "group": "zip_charset",
+        "before_returncode": 1,
+        "after_returncode": 0,
+        "accepted": true,
+        "checks": {
+          "before_failed": true,
+          "before_charset_error": true,
+          "after_decode_success": true,
+          "manifest_present": true,
+          "normal_decode_success": true,
+          "raw_decode_success": true,
+          "manifest_bytes_unchanged": true,
+          "classes.dex:raw_bytes_unchanged": true,
+          "classes.dex:standalone_success": true,
+          "classes.dex:all_classes": true,
+          "classes.dex:smali_identical": true,
+          "classes.dex:normal_smali_identical": true,
+          "dex_present": true,
+          "input_unchanged": true
+        }
+      },
+      {
+        "path": "Adware/23bba23d10a6b9b1aaaee39b71c1263927d2c03c5a594ce1d756724179c66ea8.15f806fb48bb5218356f4b6999924bda",
+        "sha256": "23bba23d10a6b9b1aaaee39b71c1263927d2c03c5a594ce1d756724179c66ea8",
+        "group": "invalid_types_recursion",
+        "before_returncode": 1,
+        "after_returncode": 1,
+        "accepted": true,
+        "checks": {
+          "before_failed": true,
+          "before_stack_overflow": true,
+          "after_explicit_invalid_type": true,
+          "after_no_recursion": true,
+          "input_unchanged": true
+        }
+      },
+      {
+        "path": "Adware/3fd90bba151c2d39d8dc29bae000cddd72a63188401c3ca176ad7664a6a74e56.a9128accbbd34915e6426895b17e2e48",
+        "sha256": "3fd90bba151c2d39d8dc29bae000cddd72a63188401c3ca176ad7664a6a74e56",
+        "group": "invalid_types_recursion",
+        "before_returncode": 1,
+        "after_returncode": 1,
+        "accepted": true,
+        "checks": {
+          "before_failed": true,
+          "before_stack_overflow": true,
+          "after_explicit_invalid_type": true,
+          "after_no_recursion": true,
+          "input_unchanged": true
+        }
+      },
+      {
+        "path": "Adware/595aff5e19e498f191b23f5dcbb0dc100b47aad8ce9c455483b381a216909e43.1abae25e6b1c87f09c320956dd822fe7",
+        "sha256": "595aff5e19e498f191b23f5dcbb0dc100b47aad8ce9c455483b381a216909e43",
+        "group": "invalid_types_recursion",
+        "before_returncode": 1,
+        "after_returncode": 1,
+        "accepted": true,
+        "checks": {
+          "before_failed": true,
+          "before_stack_overflow": true,
+          "after_explicit_invalid_type": true,
+          "after_no_recursion": true,
+          "input_unchanged": true
+        }
+      },
+      {
+        "path": "Adware/ee846a460a35383a0f8c54c4f7f7fe407f325c52e0f9b6471b9e98c15ea44032.4a6f0281484336f09202d9ba3c18a4dd",
+        "sha256": "ee846a460a35383a0f8c54c4f7f7fe407f325c52e0f9b6471b9e98c15ea44032",
+        "group": "invalid_types_recursion",
+        "before_returncode": 1,
+        "after_returncode": 1,
+        "accepted": true,
+        "checks": {
+          "before_failed": true,
+          "before_stack_overflow": true,
+          "after_explicit_invalid_type": true,
+          "after_no_recursion": true,
+          "input_unchanged": true
+        }
+      },
+      {
+        "path": "Adware/f614a29ef4504ef2342f904d5e578965b180c103ae80c23c574b828f96cf0a79.4082cb8ed12db726c827ebb03f1074c9",
+        "sha256": "f614a29ef4504ef2342f904d5e578965b180c103ae80c23c574b828f96cf0a79",
+        "group": "invalid_types_recursion",
+        "before_returncode": 1,
+        "after_returncode": 1,
+        "accepted": true,
+        "checks": {
+          "before_failed": true,
+          "before_stack_overflow": true,
+          "after_explicit_invalid_type": true,
+          "after_no_recursion": true,
+          "input_unchanged": true
+        }
+      },
+      {
+        "path": "Adware/ff1386cfc90031addf51331f8143d349de3837dfddd62451091376cde41c24c6.65391bde56bb7c55d827dfda4f28e2e7",
+        "sha256": "ff1386cfc90031addf51331f8143d349de3837dfddd62451091376cde41c24c6",
+        "group": "invalid_types_recursion",
+        "before_returncode": 1,
+        "after_returncode": 1,
+        "accepted": true,
+        "checks": {
+          "before_failed": true,
+          "before_stack_overflow": true,
+          "after_explicit_invalid_type": true,
+          "after_no_recursion": true,
+          "input_unchanged": true
+        }
+      },
+      {
+        "path": "Riskware/21254d870f0a973d2d72ad464595aa64.apk",
+        "sha256": "3de8bd896b954b1fd53b7c6557ecd72ac6d2e709cc31970adacf2b0360c5cb3e",
+        "group": "malformed_resource_and_dex036",
+        "before_returncode": 1,
+        "after_returncode": 1,
+        "accepted": true,
+        "checks": {
+          "before_failed": true,
+          "resource_diagnostic": true,
+          "resource_not_called_empty": true,
+          "dex036_still_rejected": true,
+          "input_unchanged": true
+        }
+      },
+      {
+        "path": "Riskware/e4abe850437590c5ab759fc700120393.apk",
+        "sha256": "6a29dd5275b58b28ff31f39fa174986dd1f9d8db2078818b78899cee5fd1adff",
+        "group": "malformed_resource_and_dex036",
+        "before_returncode": 1,
+        "after_returncode": 1,
+        "accepted": true,
+        "checks": {
+          "before_failed": true,
+          "resource_diagnostic": true,
+          "resource_not_called_empty": true,
+          "dex036_still_rejected": true,
+          "input_unchanged": true
+        }
+      },
+      {
+        "path": "Riskware/b93a8c7d6c898ed6b15e1f3ad52a9ba6.apk",
+        "sha256": "d6a38272f38a6834a457c589c8f7b351203d45a8350aa29a065871e7853b6f65",
+        "group": "malformed_resource_and_dex036",
+        "before_returncode": 1,
+        "after_returncode": 1,
+        "accepted": true,
+        "checks": {
+          "before_failed": true,
+          "resource_diagnostic": true,
+          "resource_not_called_empty": true,
+          "dex036_still_rejected": true,
+          "input_unchanged": true
+        }
+      },
+      {
+        "path": "Riskware/fceb1c3e3dec7c79b265ba223d379cd8.apk",
+        "sha256": "e1c354a0f932bc7691fb928fb32e308f8a5f22a8d51b013ab3ca7cf94222eaaa",
+        "group": "malformed_resource_and_dex036",
+        "before_returncode": 1,
+        "after_returncode": 1,
+        "accepted": true,
+        "checks": {
+          "before_failed": true,
+          "resource_diagnostic": true,
+          "resource_not_called_empty": true,
+          "dex036_still_rejected": true,
+          "input_unchanged": true
+        }
+      }
+    ]
+  }
+}
