@@ -16,6 +16,8 @@
  */
 package brut.directory;
 
+import brut.util.ZipUtils;
+
 import java.io.File;
 import java.io.InputStream;
 import java.io.IOException;
@@ -43,7 +45,7 @@ public class ZipRODirectory extends Directory {
 
     public ZipRODirectory(File file, String path) throws DirectoryException {
         try {
-            mZipFile = new ZipFile(file);
+            mZipFile = ZipUtils.openZipFile(file);
         } catch (IOException ex) {
             throw new DirectoryException(ex);
         }
@@ -89,7 +91,7 @@ public class ZipRODirectory extends Directory {
     }
 
     private ZipEntry getZipFileEntry(String name) throws DirectoryException {
-        ZipEntry entry = mZipFile.getEntry(name);
+        ZipEntry entry = ZipUtils.getZipEntry(mZipFile, name);
         if (entry == null) {
             throw new PathNotExist("Entry not found: " + name);
         }
@@ -99,7 +101,7 @@ public class ZipRODirectory extends Directory {
     @Override
     protected InputStream getFileInputImpl(String name) throws DirectoryException {
         try {
-            return mZipFile.getInputStream(new ZipEntry(mPath + name));
+            return mZipFile.getInputStream(getZipFileEntry(mPath + name));
         } catch (IOException ex) {
             throw new PathNotExist(name, ex);
         }

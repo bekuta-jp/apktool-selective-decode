@@ -23,12 +23,18 @@ import org.apache.commons.io.IOUtils;
 import java.io.File;
 import java.io.InputStream;
 import java.io.IOException;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.util.Collection;
+import java.util.Enumeration;
 import java.util.function.Predicate;
 import java.util.zip.CRC32;
 import java.util.zip.ZipEntry;
+import java.util.zip.ZipException;
+import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
 public final class ZipUtils {
@@ -36,6 +42,87 @@ public final class ZipUtils {
 
     private ZipUtils() {
         // Private constructor for utility class.
+    }
+
+    /**
+     * Prefer the historical UTF-8 interpretation, including for entries without the UTF-8 flag.
+     * Retry with the ZIP legacy charset only when metadata cannot be decoded. ZipFile still
+     * enforces UTF-8 for flagged entries. Payload corruption and unrelated I/O errors are fatal.
+     */
+    public static ZipFile openZipFile(File file) throws IOException {
+        try {
+            return openZipFile(file, StandardCharsets.UTF_8);
+        } catch (IOException | IllegalArgumentException ex) {
+            if (!isMetadataEncodingError(ex)) {
+                throw ex;
+            }
+            try {
+                ZipFile zip = openZipFile(file, Charset.forName("IBM437"));
+                Log.w(TAG, "Reading ZIP metadata without the UTF-8 flag as IBM437: %s (%s)", file, ex.getMessage());
+                return zip;
+            } catch (IOException | IllegalArgumentException fallbackError) {
+                fallbackError.addSuppressed(ex);
+                throw fallbackError;
+            }
+        }
+    }
+
+    private static ZipFile openZipFile(File file, Charset charset) throws IOException {
+        ZipFile zip = new ZipFile(file, charset);
+        try {
+            // Some JDKs decode comments/names lazily. Validate the whole central directory
+            // before returning, so callers never start work with a partly decoded directory.
+            Enumeration<? extends ZipEntry> entries = zip.entries();
+            while (entries.hasMoreElements()) {
+                entries.nextElement();
+            }
+            return zip;
+        } catch (RuntimeException | Error ex) {
+            try {
+                zip.close();
+            } catch (IOException closeError) {
+                ex.addSuppressed(closeError);
+            }
+            throw ex;
+        }
+    }
+
+    private static boolean isMetadataEncodingError(Exception ex) {
+        for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
+            if (cause instanceof CharacterCodingException) {
+                return true;
+            }
+        }
+        String message = ex.getMessage();
+        // JDK 8 may omit the CharacterCodingException cause; newer JDKs reject names at open.
+        return message != null && ((ex instanceof ZipException
+                && message.equals("invalid CEN header (bad entry name)"))
+            || (ex instanceof IllegalArgumentException
+                && (message.startsWith("MALFORMED[") || message.startsWith("UNMAPPABLE["))));
+    }
+
+    public static ZipEntry getZipEntry(ZipFile zip, String name) {
+        try {
+            ZipEntry entry = zip.getEntry(name);
+            if (entry != null) {
+                return entry;
+            }
+        } catch (IllegalArgumentException ex) {
+            if (!isMetadataEncodingError(ex)) {
+                throw ex;
+            }
+        }
+        // Older JDKs encode lookup names with the archive charset even for UTF-8-flagged
+        // entries. Enumeration decodes each entry with its own flag. Return that actual
+        // entry so getInputStream also sees the flag instead of a synthetic ZipEntry.
+        Enumeration<? extends ZipEntry> entries = zip.entries();
+        while (entries.hasMoreElements()) {
+            ZipEntry entry = entries.nextElement();
+            if (entry.getName().equals(name)) {
+                return entry;
+            }
+        }
+        return null;
     }
 
     public static void zipDir(File dir, ZipOutputStream out, Collection<String> doNotCompress) throws IOException {
